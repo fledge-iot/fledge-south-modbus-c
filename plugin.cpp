@@ -24,7 +24,7 @@ using namespace std;
  * Default configuration
  */
 #define CONFIG	"{\"plugin\" : { \"description\" : \"Modbus TCP and RTU C south plugin\", " \
-			"\"type\" : \"string\", \"default\" : \"foglamp-modbus\" }, " \
+			"\"type\" : \"string\", \"default\" : \"ModbusC\" }, " \
 		"\"asset\" : { \"description\" : \"Asset name\", "\
 			"\"type\" : \"string\", \"default\" : \"modbus\" }, " \
 		"\"address\" : { \"description\" : \"Address of Modbus TCP server\", " \
@@ -32,7 +32,7 @@ using namespace std;
 		"\"port\" : { \"description\" : \"Port of Modbus TCP server\", " \
 			"\"type\" : \"integer\", \"default\" : \"2222\" }, "\
 		"\"device\" : { \"description\" : \"Device for Modbus RTU\", " \
-			"\"type\" : \"integer\", \"default\" : \"\" }, "\
+			"\"type\" : \"string\", \"default\" : \"\" }, "\
 		"\"baud\" : { \"description\" : \"Baud rate  of Modbus RTU\", " \
 			"\"type\" : \"integer\", \"default\" : \"9600\" }, "\
 		"\"bits\" : { \"description\" : \"Number of data bits for Modbus RTU\", " \
@@ -41,16 +41,16 @@ using namespace std;
 			"\"type\" : \"integer\", \"default\" : \"1\" }, "\
 		"\"parity\" : { \"description\" : \"Parity to use\", " \
 			"\"type\" : \"string\", \"default\" : \"none\" }, "\
-		"\"slave\" : { \"description\" : \"The Modbus device slae ID\", " \
+		"\"slave\" : { \"description\" : \"The Modbus device slave ID\", " \
 			"\"type\" : \"integer\", \"default\" : \"1\" }, "\
 		"\"map\" : { \"description\" : \"Modbus register map\", " \
-			"\"type\" : \"JSON\", \"default\" : { " \
-				"\"coils\" : { }, " \
-				"\"inputs\" : { }, " \
-				"\"registers\" : { \"temperature\" : 1," \
-				  		  "\"humidity\" : 2 }," \
-				"\"inputRegisters\" : { }" \
-			"} } }"
+			"\"type\" : \"JSON\", \"default\" : \"{ " \
+				"\\\"coils\\\" : { }, " \
+				"\\\"inputs\\\" : { }, " \
+				"\\\"registers\\\" : { \\\"temperature\\\" : 1," \
+				  		  "\\\"humidity\\\" : 2 }," \
+				"\\\"inputRegisters\\\" : { }" \
+			"}\" } }"
 
 /**
  * The Modbus plugin interface
