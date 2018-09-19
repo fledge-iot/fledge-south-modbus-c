@@ -27,6 +27,9 @@ using namespace std;
 			"\"type\" : \"string\", \"default\" : \"ModbusC\" }, " \
 		"\"asset\" : { \"description\" : \"Asset name\", "\
 			"\"type\" : \"string\", \"default\" : \"modbus\" }, " \
+		"\"protocol\" : { \"description\" : \"Protocol\", "\
+			"\"type\" : \"enumeration\", \"default\" : \"RTU\", " \
+			"\"options\" : [ \"RTU\", \"TCP\"] }, " \
 		"\"address\" : { \"description\" : \"Address of Modbus TCP server\", " \
 			"\"type\" : \"string\", \"default\" : \"127.0.0.1\" }, "\
 		"\"port\" : { \"description\" : \"Port of Modbus TCP server\", " \
@@ -85,62 +88,80 @@ PLUGIN_HANDLE plugin_init(ConfigCategory *config)
 Modbus *modbus = 0;
 string	device, address;
 
-	if (config->itemExists("address"))
+	if (config->itemExists("protocol"))
 	{
-		address = config->getValue("address");
-		if (! address.empty())		// Not empty
+		string proto = config->getValue("protocol");
+		if (!proto.compare("TCP"))
 		{
-			unsigned short port = 502;
-			if (config->itemExists("port"))
+			if (config->itemExists("address"))
 			{
-				string value = config->getValue("port");
-				port = (unsigned short)atoi(value.c_str());
+				address = config->getValue("address");
+				if (! address.empty())		// Not empty
+				{
+					unsigned short port = 502;
+					if (config->itemExists("port"))
+					{
+						string value = config->getValue("port");
+						port = (unsigned short)atoi(value.c_str());
+					}
+					modbus = new Modbus(address.c_str(), port);
+				}
 			}
-			modbus = new Modbus(address.c_str(), port);
+		}
+		else if (!proto.compare("TCP"))
+		{
+			if (config->itemExists("device"))
+			{
+				device = config->getValue("device");
+				if (! device.empty())
+				{
+					int baud = 9600;
+					char parity = 'N';
+					int bits = 8;
+					int stopBits = 1;
+					if (config->itemExists("baud"))
+					{
+						string value = config->getValue("baud");
+						baud = atoi(value.c_str());
+					}
+					if (config->itemExists("parity"))
+					{
+						string value = config->getValue("parity");
+						if (value.compare("even") == 0)
+						{
+							parity = 'E';
+						}
+						else if (value.compare("odd") == 0)
+						{
+							parity = 'O';
+						}
+						else if (value.compare("none") == 0)
+						{
+							parity = 'N';
+						}
+					}
+					if (config->itemExists("bits"))
+					{
+						string value = config->getValue("bits");
+						bits = atoi(value.c_str());
+					}
+					if (config->itemExists("stopBits"))
+					{
+						string value = config->getValue("stopBits");
+						stopBits = atoi(value.c_str());
+					}
+					modbus = new Modbus(device.c_str(), baud, parity, bits, stopBits);
+				}
+			}
+		}
+		else
+		{
+			Logger::getLogger()->fatal("Modbus must specify either RTU or TCP as protocol");
 		}
 	}
-	if (config->itemExists("device"))
+	else
 	{
-		device = config->getValue("device");
-		if (! device.empty())
-		{
-			int baud = 9600;
-			char parity = 'N';
-			int bits = 8;
-			int stopBits = 1;
-			if (config->itemExists("baud"))
-			{
-				string value = config->getValue("baud");
-				baud = atoi(value.c_str());
-			}
-			if (config->itemExists("parity"))
-			{
-				string value = config->getValue("parity");
-				if (value.compare("even") == 0)
-				{
-					parity = 'E';
-				}
-				else if (value.compare("odd") == 0)
-				{
-					parity = 'O';
-				}
-				else if (value.compare("none") == 0)
-				{
-					parity = 'N';
-				}
-			}
-			if (config->itemExists("bits"))
-			{
-				string value = config->getValue("bits");
-				bits = atoi(value.c_str());
-			}
-			if (config->itemExists("stopBits"))
-			{
-				string value = config->getValue("stopBits");
-				stopBits = atoi(value.c_str());
-			}
-			modbus = new Modbus(device.c_str(), baud, parity, bits, stopBits);
-		}
+		Logger::getLogger()->fatal("Modbus missing protocol specification");
 	}
 	if (config->itemExists("slave"))
 	{
