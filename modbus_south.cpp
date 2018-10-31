@@ -36,6 +36,9 @@ Modbus::Modbus(const string& device, int baud, char parity, int bits, int stopBi
 	m_device(device), m_address(""), m_port(0), m_tcp(false)
 {
 	m_modbus = modbus_new_rtu(device.c_str(), baud, parity, bits, stopBits);
+#if DEBUG
+	modbus_set_debug(m_modbus, true);
+#endif
 	m_connected = true;
 }
 /**
