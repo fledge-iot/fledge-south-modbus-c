@@ -108,7 +108,7 @@ string	device, address;
 				}
 			}
 		}
-		else if (!proto.compare("TCP"))
+		else if (!proto.compare("RTU"))
 		{
 			if (config->itemExists("device"))
 			{
