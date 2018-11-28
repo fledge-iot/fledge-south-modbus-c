@@ -12,6 +12,8 @@
 #include <reading.h>
 #include <modbus/modbus.h>
 #include <string>
+#include <vector>
+#include <map>
 
 class Modbus {
 	public:
@@ -19,6 +21,8 @@ class Modbus {
 		Modbus(const std::string& device, int baud, char parity, int bits, int stopBits);
 		~Modbus();
 		void		setSlave(int slave);
+		void		setDefaultSlave(int slave) { m_defaultSlave = slave; };
+		int		getDefaultSlave() { return m_defaultSlave; };
 		void		setAssetName(const std::string& assetName) { m_assetName = assetName; };
 		void		addRegister(const std::string& value, const unsigned int registerNo)
 				{
@@ -36,6 +40,10 @@ class Modbus {
 				{
 					m_inputRegisters.push_back(new Modbus::RegisterMap(value, registerNo));
 				};
+		void		addRegister(const int slave, const std::string& value, const unsigned int registerNo);
+		void		addCoil(const int slave, const std::string& value, const unsigned int registerNo);
+		void		addInput(const int slave, const std::string& value, const unsigned int registerNo);
+		void		addInputRegister(const int slave, const std::string& value, const unsigned int registerNo);
 		Reading		takeReading();
 	private:
 		Modbus(const Modbus&);
@@ -53,10 +61,19 @@ class Modbus {
 		std::vector<RegisterMap *>	m_inputs;
 		std::vector<RegisterMap *>	m_registers;
 		std::vector<RegisterMap *>	m_inputRegisters;
+		std::map<int, std::vector<RegisterMap *>>
+						m_slaveCoils;
+		std::map<int, std::vector<RegisterMap *>>
+						m_slaveInputs;
+		std::map<int, std::vector<RegisterMap *>>
+						m_slaveRegisters;
+		std::map<int, std::vector<RegisterMap *>>
+						m_slaveInputRegisters;
 		const std::string		m_address;
 		const unsigned short		m_port;
 		const std::string		m_device;
 		const bool			m_tcp;
 		bool				m_connected;
+		int				m_defaultSlave;
 };
 #endif

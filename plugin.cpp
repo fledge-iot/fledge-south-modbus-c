@@ -48,11 +48,14 @@ using namespace std;
 			"\"type\" : \"integer\", \"default\" : \"1\" }, "\
 		"\"map\" : { \"description\" : \"Modbus register map\", " \
 			"\"type\" : \"JSON\", \"default\" : \"{ " \
-				"\\\"coils\\\" : { }, " \
-				"\\\"inputs\\\" : { }, " \
-				"\\\"registers\\\" : { \\\"temperature\\\" : 1," \
+				"\\\"slaves\\\" : [ { " \
+					"\\\"id\\\" : 1, " \
+					"\\\"coils\\\" : { }, " \
+					"\\\"inputs\\\" : { }, " \
+					"\\\"registers\\\" : { \\\"temperature\\\" : 1," \
 				  		  "\\\"humidity\\\" : 2 }," \
-				"\\\"inputRegisters\\\" : { }" \
+					"\\\"inputRegisters\\\" : { }" \
+					"} ] " \
 			"}\" } }"
 
 /**
@@ -113,45 +116,42 @@ string	device, address;
 			if (config->itemExists("device"))
 			{
 				device = config->getValue("device");
-				if (! device.empty())
+				int baud = 9600;
+				char parity = 'N';
+				int bits = 8;
+				int stopBits = 1;
+				if (config->itemExists("baud"))
 				{
-					int baud = 9600;
-					char parity = 'N';
-					int bits = 8;
-					int stopBits = 1;
-					if (config->itemExists("baud"))
-					{
-						string value = config->getValue("baud");
-						baud = atoi(value.c_str());
-					}
-					if (config->itemExists("parity"))
-					{
-						string value = config->getValue("parity");
-						if (value.compare("even") == 0)
-						{
-							parity = 'E';
-						}
-						else if (value.compare("odd") == 0)
-						{
-							parity = 'O';
-						}
-						else if (value.compare("none") == 0)
-						{
-							parity = 'N';
-						}
-					}
-					if (config->itemExists("bits"))
-					{
-						string value = config->getValue("bits");
-						bits = atoi(value.c_str());
-					}
-					if (config->itemExists("stopBits"))
-					{
-						string value = config->getValue("stopBits");
-						stopBits = atoi(value.c_str());
-					}
-					modbus = new Modbus(device.c_str(), baud, parity, bits, stopBits);
+					string value = config->getValue("baud");
+					baud = atoi(value.c_str());
 				}
+				if (config->itemExists("parity"))
+				{
+					string value = config->getValue("parity");
+					if (value.compare("even") == 0)
+					{
+						parity = 'E';
+					}
+					else if (value.compare("odd") == 0)
+					{
+						parity = 'O';
+					}
+					else if (value.compare("none") == 0)
+					{
+						parity = 'N';
+					}
+				}
+				if (config->itemExists("bits"))
+				{
+					string value = config->getValue("bits");
+					bits = atoi(value.c_str());
+				}
+				if (config->itemExists("stopBits"))
+				{
+					string value = config->getValue("stopBits");
+					stopBits = atoi(value.c_str());
+				}
+				modbus = new Modbus(device.c_str(), baud, parity, bits, stopBits);
 			}
 		}
 		else
@@ -165,7 +165,7 @@ string	device, address;
 	}
 	if (config->itemExists("slave"))
 	{
-		modbus->setSlave(atoi(config->getValue("slave").c_str()));
+		modbus->setDefaultSlave(atoi(config->getValue("slave").c_str()));
 	}
 
 	if (config->itemExists("asset"))
@@ -183,6 +183,51 @@ string	device, address;
 	doc.Parse(map.c_str());
 	if (!doc.HasParseError())
 	{
+		if (doc.HasMember("slaves") && doc["slaves"].IsArray())
+		{
+			const rapidjson::Value& slaves = doc["slaves"];
+			for (rapidjson::Value::ConstValueIterator itr = slaves.Begin();
+						itr != slaves.End(); ++itr)
+			{
+				int id = modbus->getDefaultSlave();
+				if (itr->HasMember("id"))
+				{
+					id = (*itr)["id"].GetInt();
+				}
+				if (itr->HasMember("coils") && (*itr)["coils"].IsObject())
+				{
+					for (rapidjson::Value::ConstMemberIterator itr2 = (*itr)["coils"].MemberBegin();
+								itr2 != (*itr)["coils"].MemberEnd(); ++itr2)
+					{
+						modbus->addCoil(id, itr2->name.GetString(), itr2->value.GetUint());
+					}
+				}
+				if (itr->HasMember("inputs") && (*itr)["inputs"].IsObject())
+				{
+					for (rapidjson::Value::ConstMemberIterator itr2 = (*itr)["inputs"].MemberBegin();
+								itr2 != (*itr)["inputs"].MemberEnd(); ++itr2)
+					{
+						modbus->addInput(id, itr2->name.GetString(), itr2->value.GetUint());
+					}
+				}
+				if (itr->HasMember("registers") && (*itr)["registers"].IsObject())
+				{
+					for (rapidjson::Value::ConstMemberIterator itr2 = (*itr)["registers"].MemberBegin();
+								itr2 != (*itr)["registers"].MemberEnd(); ++itr2)
+					{
+						modbus->addRegister(id, itr2->name.GetString(), itr2->value.GetUint());
+					}
+				}
+				if (itr->HasMember("inputRegisters") && (*itr)["inputRegisters"].IsObject())
+				{
+					for (rapidjson::Value::ConstMemberIterator itr2 = (*itr)["inputRegisters"].MemberBegin();
+								itr2 != (*itr)["inputRegisters"].MemberEnd(); ++itr2)
+					{
+						modbus->addInputRegister(id, itr2->name.GetString(), itr2->value.GetUint());
+					}
+				}
+			}
+		}
 		if (doc.HasMember("coils") && doc["coils"].IsObject())
 		{
 			for (rapidjson::Value::ConstMemberIterator itr = doc["coils"].MemberBegin();
@@ -237,7 +282,7 @@ Reading plugin_poll(PLUGIN_HANDLE *handle)
 Modbus *modbus = (Modbus *)handle;
 
 	if (!handle)
-		throw new exception();
+		throw exception();
 	return modbus->takeReading();
 }
 
@@ -246,6 +291,8 @@ Modbus *modbus = (Modbus *)handle;
  */
 void plugin_reconfigure(PLUGIN_HANDLE *handle, string& newConfig)
 {
+Modbus		*modbus = (Modbus *)handle;
+ConfigCategory	config("new", newConfig);
 }
 
 /**

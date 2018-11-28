@@ -70,6 +70,91 @@ void Modbus::setSlave(int slave)
 }
 
 /**
+ * Add a registers for a particular slave
+ *
+ * @param slave		The slave ID we are referencing
+ * @param value		The datapoint name for the associated reading
+ * @param registerNo	The modbus register number
+ */
+void Modbus::addRegister(const int slave, const string& value, const unsigned int registerNo)
+{
+	if (m_slaveRegisters.find(slave) != m_slaveRegisters.end())
+	{
+		m_slaveRegisters[slave].push_back(new Modbus::RegisterMap(value, registerNo));
+	}
+	else
+	{
+		vector<Modbus::RegisterMap *> empty;
+		m_slaveRegisters.insert(pair<int, vector<Modbus::RegisterMap *> >(slave, empty));
+		m_slaveRegisters[slave].push_back(new Modbus::RegisterMap(value, registerNo));
+	}
+}
+
+/**
+ * Add a coil for a particular slave
+ *
+ * @param slave		The slave ID we are referencing
+ * @param value		The datapoint name for the associated reading
+ * @param registerNo	The modbus register number
+ */
+void Modbus::addCoil(const int slave, const string& value, const unsigned int registerNo)
+{
+	if (m_slaveCoils.find(slave) != m_slaveCoils.end())
+	{
+		m_slaveCoils[slave].push_back(new Modbus::RegisterMap(value, registerNo));
+	}
+	else
+	{
+		vector<Modbus::RegisterMap *> empty;
+		m_slaveCoils.insert(pair<int, vector<Modbus::RegisterMap *> >(slave, empty));
+		m_slaveCoils[slave].push_back(new Modbus::RegisterMap(value, registerNo));
+	}
+}
+
+/**
+ * Add an input for a particular slave
+ *
+ * @param slave		The slave ID we are referencing
+ * @param value		The datapoint name for the associated reading
+ * @param registerNo	The modbus register number
+ */
+void Modbus::addInput(const int slave, const string& value, const unsigned int registerNo)
+{
+	if (m_slaveInputs.find(slave) != m_slaveInputs.end())
+	{
+		m_slaveInputs[slave].push_back(new Modbus::RegisterMap(value, registerNo));
+	}
+	else
+	{
+		vector<Modbus::RegisterMap *> empty;
+		m_slaveInputs.insert(pair<int, vector<Modbus::RegisterMap *> >(slave, empty));
+		m_slaveInputs[slave].push_back(new Modbus::RegisterMap(value, registerNo));
+	}
+}
+
+/**
+ * Add an input registers for a particular slave
+ *
+ * @param slave		The slave ID we are referencing
+ * @param value		The datapoint name for the associated reading
+ * @param registerNo	The modbus register number
+ */
+void Modbus::addInputRegister(const int slave, const string& value, const unsigned int registerNo)
+{
+	if (m_slaveInputRegisters.find(slave) != m_slaveInputRegisters.end())
+	{
+		m_slaveInputRegisters[slave].push_back(new Modbus::RegisterMap(value, registerNo));
+	}
+	else
+	{
+		vector<Modbus::RegisterMap *> empty;
+		m_slaveInputRegisters.insert(pair<int, vector<Modbus::RegisterMap *> >(slave, empty));
+		m_slaveInputRegisters[slave].push_back(new Modbus::RegisterMap(value, registerNo));
+	}
+}
+
+
+/**
  * Take a reading from the modbus
  */
 Reading	Modbus::takeReading()
@@ -84,6 +169,11 @@ vector<Datapoint *>	points;
 	{
 		return Reading(m_assetName, points);
 	}
+
+	/*
+	 * First do the readings from the default slave.
+	 */
+	setSlave(m_defaultSlave);
 	for (int i = 0; i < m_coils.size(); i++)
 	{
 		uint8_t	coilValue;
@@ -92,7 +182,7 @@ vector<Datapoint *>	points;
 			DatapointValue value((long)coilValue);
 			points.push_back(new Datapoint(m_coils[i]->m_name, value));
 		}
-		else if (errno = EPIPE)
+		else if (errno == EPIPE)
 		{
 			m_connected = false;
 		}
@@ -105,7 +195,7 @@ vector<Datapoint *>	points;
 			DatapointValue value((long)inputValue);
 			points.push_back(new Datapoint(m_inputs[i]->m_name, value));
 		}
-		else if (errno = EPIPE)
+		else if (errno == EPIPE)
 		{
 			m_connected = false;
 		}
@@ -118,7 +208,7 @@ vector<Datapoint *>	points;
 			DatapointValue value((long)regValue);
 			points.push_back(new Datapoint(m_registers[i]->m_name, value));
 		}
-		else if (errno = EPIPE)
+		else if (errno == EPIPE)
 		{
 			m_connected = false;
 		}
@@ -131,10 +221,83 @@ vector<Datapoint *>	points;
 			DatapointValue value((long)regValue);
 			points.push_back(new Datapoint(m_inputRegisters[i]->m_name, value));
 		}
-		else if (errno = EPIPE)
+		else if (errno == EPIPE)
 		{
 			m_connected = false;
 		}
 	}
+	/*
+	 * Now iterate on the slaves
+	 */
+	for (auto it = m_slaveCoils.cbegin(); it != m_slaveCoils.cend(); it++)
+	{
+		setSlave(it->first);
+		for (int i = 0; i < it->second.size(); i++)
+		{
+			uint8_t	coilValue;
+			if (modbus_read_bits(m_modbus, it->second[i]->m_registerNo, 1, &coilValue) == 1)
+			{
+				DatapointValue value((long)coilValue);
+				points.push_back(new Datapoint(it->second[i]->m_name, value));
+			}
+			else if (errno == EPIPE)
+			{
+				m_connected = false;
+			}
+		}
+	}
+	for (auto it = m_slaveInputs.cbegin(); it != m_slaveInputs.cend(); it++)
+	{
+		setSlave(it->first);
+		for (int i = 0; i < it->second.size(); i++)
+		{
+			uint8_t	inputValue;
+			if (modbus_read_input_bits(m_modbus, it->second[i]->m_registerNo, 1, &inputValue) == 1)
+			{
+				DatapointValue value((long)inputValue);
+				points.push_back(new Datapoint(it->second[i]->m_name, value));
+			}
+			else if (errno == EPIPE)
+			{
+				m_connected = false;
+			}
+		}
+	}
+	for (auto it = m_slaveRegisters.cbegin(); it != m_slaveRegisters.cend(); it++)
+	{
+		setSlave(it->first);
+		for (int i = 0; i < it->second.size(); i++)
+		{
+			uint16_t	registerValue;
+			if (modbus_read_registers(m_modbus, it->second[i]->m_registerNo, 1, &registerValue) == 1)
+			{
+				DatapointValue value((long)registerValue);
+				points.push_back(new Datapoint(it->second[i]->m_name, value));
+			}
+			else if (errno == EPIPE)
+			{
+				m_connected = false;
+			}
+		}
+	}
+	for (auto it = m_slaveInputRegisters.cbegin(); it != m_slaveInputRegisters.cend(); it++)
+	{
+		setSlave(it->first);
+		for (int i = 0; i < it->second.size(); i++)
+		{
+			uint16_t	registerValue;
+			if (modbus_read_input_registers(m_modbus, it->second[i]->m_registerNo, 1, &registerValue) == 1)
+			{
+				DatapointValue value((long)registerValue);
+				points.push_back(new Datapoint(it->second[i]->m_name, value));
+			}
+			else if (errno == EPIPE)
+			{
+				m_connected = false;
+			}
+		}
+	}
+	if (points.size() == 0)
+		throw exception();
 	return Reading(m_assetName, points);
 }
