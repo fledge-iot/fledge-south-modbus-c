@@ -9,6 +9,7 @@
  */
 #include <modbus_south.h>
 #include <reading.h>
+#include <logger.h>
 
 using namespace std;
 
@@ -24,8 +25,10 @@ Modbus::Modbus(const string& ip, const unsigned short port) :
 #endif
 	if (modbus_connect(m_modbus) == -1)
 	{
+		Logger::getLogger()->error("Failed to connect to Modbus TCP server");
 		m_connected = false;
 	}
+	Logger::getLogger()->info("Modbus TCP connected");
 	
 }
 
@@ -53,6 +56,16 @@ Modbus::~Modbus()
 	}
 	for (vector<RegisterMap *>::const_iterator it = m_coils.cbegin();
 			it != m_coils.cend(); ++it)
+	{
+		delete *it;
+	}
+	for (vector<RegisterMap *>::const_iterator it = m_inputs.cbegin();
+			it != m_inputs.cend(); ++it)
+	{
+		delete *it;
+	}
+	for (vector<RegisterMap *>::const_iterator it = m_inputRegisters.cbegin();
+			it != m_inputRegisters.cend(); ++it)
 	{
 		delete *it;
 	}
@@ -297,7 +310,5 @@ vector<Datapoint *>	points;
 			}
 		}
 	}
-	if (points.size() == 0)
-		throw exception();
 	return Reading(m_assetName, points);
 }
