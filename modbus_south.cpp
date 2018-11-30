@@ -23,13 +23,16 @@ Modbus::Modbus(const string& ip, const unsigned short port) :
 #if DEBUG
 	modbus_set_debug(m_modbus, true);
 #endif
+	errno = 0;
 	if (modbus_connect(m_modbus) == -1)
 	{
-		Logger::getLogger()->error("Failed to connect to Modbus TCP server");
+		Logger::getLogger()->error("Failed to connect to Modbus TCP server %s", modbus_strerror(errno));
 		m_connected = false;
 	}
-	Logger::getLogger()->info("Modbus TCP connected");
-	
+	else
+	{
+		Logger::getLogger()->info("Modbus TCP connected %s:%d", m_address.c_str(), m_port);
+	}
 }
 
 /**
@@ -42,7 +45,13 @@ Modbus::Modbus(const string& device, int baud, char parity, int bits, int stopBi
 #if DEBUG
 	modbus_set_debug(m_modbus, true);
 #endif
+	if (modbus_connect(m_modbus) == -1)
+	{
+		Logger::getLogger()->error("Failed to connect to Modbus RTU device:  %s", modbus_strerror(errno));
+		m_connected = false;
+	}
 	m_connected = true;
+	Logger::getLogger()->info("Modbus RTU connected to %s",  m_device.c_str());
 }
 /**
  * Destructor for the modbus interface
@@ -89,17 +98,17 @@ void Modbus::setSlave(int slave)
  * @param value		The datapoint name for the associated reading
  * @param registerNo	The modbus register number
  */
-void Modbus::addRegister(const int slave, const string& value, const unsigned int registerNo)
+void Modbus::addRegister(const int slave, const string& value, const unsigned int registerNo, double scale, double offset)
 {
 	if (m_slaveRegisters.find(slave) != m_slaveRegisters.end())
 	{
-		m_slaveRegisters[slave].push_back(new Modbus::RegisterMap(value, registerNo));
+		m_slaveRegisters[slave].push_back(new Modbus::RegisterMap(value, registerNo, scale, offset));
 	}
 	else
 	{
 		vector<Modbus::RegisterMap *> empty;
 		m_slaveRegisters.insert(pair<int, vector<Modbus::RegisterMap *> >(slave, empty));
-		m_slaveRegisters[slave].push_back(new Modbus::RegisterMap(value, registerNo));
+		m_slaveRegisters[slave].push_back(new Modbus::RegisterMap(value, registerNo, scale, offset));
 	}
 }
 
@@ -110,17 +119,17 @@ void Modbus::addRegister(const int slave, const string& value, const unsigned in
  * @param value		The datapoint name for the associated reading
  * @param registerNo	The modbus register number
  */
-void Modbus::addCoil(const int slave, const string& value, const unsigned int registerNo)
+void Modbus::addCoil(const int slave, const string& value, const unsigned int registerNo, double scale, double offset)
 {
 	if (m_slaveCoils.find(slave) != m_slaveCoils.end())
 	{
-		m_slaveCoils[slave].push_back(new Modbus::RegisterMap(value, registerNo));
+		m_slaveCoils[slave].push_back(new Modbus::RegisterMap(value, registerNo, scale, offset));
 	}
 	else
 	{
 		vector<Modbus::RegisterMap *> empty;
 		m_slaveCoils.insert(pair<int, vector<Modbus::RegisterMap *> >(slave, empty));
-		m_slaveCoils[slave].push_back(new Modbus::RegisterMap(value, registerNo));
+		m_slaveCoils[slave].push_back(new Modbus::RegisterMap(value, registerNo, scale, offset));
 	}
 }
 
@@ -131,17 +140,17 @@ void Modbus::addCoil(const int slave, const string& value, const unsigned int re
  * @param value		The datapoint name for the associated reading
  * @param registerNo	The modbus register number
  */
-void Modbus::addInput(const int slave, const string& value, const unsigned int registerNo)
+void Modbus::addInput(const int slave, const string& value, const unsigned int registerNo, double scale, double offset)
 {
 	if (m_slaveInputs.find(slave) != m_slaveInputs.end())
 	{
-		m_slaveInputs[slave].push_back(new Modbus::RegisterMap(value, registerNo));
+		m_slaveInputs[slave].push_back(new Modbus::RegisterMap(value, registerNo, scale, offset));
 	}
 	else
 	{
 		vector<Modbus::RegisterMap *> empty;
 		m_slaveInputs.insert(pair<int, vector<Modbus::RegisterMap *> >(slave, empty));
-		m_slaveInputs[slave].push_back(new Modbus::RegisterMap(value, registerNo));
+		m_slaveInputs[slave].push_back(new Modbus::RegisterMap(value, registerNo, scale, offset));
 	}
 }
 
@@ -152,17 +161,17 @@ void Modbus::addInput(const int slave, const string& value, const unsigned int r
  * @param value		The datapoint name for the associated reading
  * @param registerNo	The modbus register number
  */
-void Modbus::addInputRegister(const int slave, const string& value, const unsigned int registerNo)
+void Modbus::addInputRegister(const int slave, const string& value, const unsigned int registerNo, double scale, double offset)
 {
 	if (m_slaveInputRegisters.find(slave) != m_slaveInputRegisters.end())
 	{
-		m_slaveInputRegisters[slave].push_back(new Modbus::RegisterMap(value, registerNo));
+		m_slaveInputRegisters[slave].push_back(new Modbus::RegisterMap(value, registerNo, scale, offset));
 	}
 	else
 	{
 		vector<Modbus::RegisterMap *> empty;
 		m_slaveInputRegisters.insert(pair<int, vector<Modbus::RegisterMap *> >(slave, empty));
-		m_slaveInputRegisters[slave].push_back(new Modbus::RegisterMap(value, registerNo));
+		m_slaveInputRegisters[slave].push_back(new Modbus::RegisterMap(value, registerNo, scale, offset));
 	}
 }
 
@@ -174,13 +183,15 @@ Reading	Modbus::takeReading()
 {
 vector<Datapoint *>	points;
 
-	if ((!m_connected) && modbus_connect(m_modbus) != -1)
-	{
-		m_connected = true;
-	}
 	if (!m_connected)
 	{
-		return Reading(m_assetName, points);
+		errno = 0;
+		if (modbus_connect(m_modbus) == -1)
+		{
+			Logger::getLogger()->error("Failed to connect to Modbus device: %s", modbus_strerror(errno));
+			return Reading("failed", points);
+		}
+		m_connected = true;
 	}
 
 	/*
@@ -203,10 +214,15 @@ vector<Datapoint *>	points;
 	for (int i = 0; i < m_inputs.size(); i++)
 	{
 		uint8_t	inputValue;
+		int		rc;
 		if (modbus_read_input_bits(m_modbus, m_inputs[i]->m_registerNo, 1, &inputValue) == 1)
 		{
 			DatapointValue value((long)inputValue);
 			points.push_back(new Datapoint(m_inputs[i]->m_name, value));
+		}
+		else if (rc == -1)
+		{
+			Logger::getLogger()->error("Modbus read input bits %d, %s", m_inputs[i]->m_registerNo, modbus_strerror(errno));
 		}
 		else if (errno == EPIPE)
 		{
@@ -216,12 +232,18 @@ vector<Datapoint *>	points;
 	for (int i = 0; i < m_registers.size(); i++)
 	{
 		uint16_t	regValue;
-		if (modbus_read_registers(m_modbus, m_registers[i]->m_registerNo, 1, &regValue) == 1)
+		int		rc;
+		errno = 0;
+		if ((rc = modbus_read_registers(m_modbus, m_registers[i]->m_registerNo, 1, &regValue)) == 1)
 		{
 			DatapointValue value((long)regValue);
 			points.push_back(new Datapoint(m_registers[i]->m_name, value));
 		}
-		else if (errno == EPIPE)
+		else if (rc == -1)
+		{
+			Logger::getLogger()->error("Modbus read register %d, %s", m_registers[i]->m_registerNo, modbus_strerror(errno));
+		}
+		if (errno == EPIPE)
 		{
 			m_connected = false;
 		}
@@ -229,12 +251,18 @@ vector<Datapoint *>	points;
 	for (int i = 0; i < m_inputRegisters.size(); i++)
 	{
 		uint16_t	regValue;
-		if (modbus_read_input_registers(m_modbus, m_inputRegisters[i]->m_registerNo, 1, &regValue) == 1)
+		int		rc;
+		errno = 0;
+		if ((rc = modbus_read_input_registers(m_modbus, m_inputRegisters[i]->m_registerNo, 1, &regValue)) == 1)
 		{
 			DatapointValue value((long)regValue);
 			points.push_back(new Datapoint(m_inputRegisters[i]->m_name, value));
 		}
-		else if (errno == EPIPE)
+		else if (rc == -1)
+		{
+			Logger::getLogger()->error("Modbus read register %d, %s", m_inputRegisters[i]->m_registerNo, modbus_strerror(errno));
+		}
+		if (errno == EPIPE)
 		{
 			m_connected = false;
 		}
@@ -267,7 +295,8 @@ vector<Datapoint *>	points;
 			uint8_t	inputValue;
 			if (modbus_read_input_bits(m_modbus, it->second[i]->m_registerNo, 1, &inputValue) == 1)
 			{
-				DatapointValue value((long)inputValue);
+				double finalValue = it->second[i]->m_offset + (inputValue * it->second[i]->m_scale);
+				DatapointValue value(finalValue);
 				points.push_back(new Datapoint(it->second[i]->m_name, value));
 			}
 			else if (errno == EPIPE)
@@ -284,7 +313,8 @@ vector<Datapoint *>	points;
 			uint16_t	registerValue;
 			if (modbus_read_registers(m_modbus, it->second[i]->m_registerNo, 1, &registerValue) == 1)
 			{
-				DatapointValue value((long)registerValue);
+				double finalValue = it->second[i]->m_offset + (registerValue * it->second[i]->m_scale);
+				DatapointValue value(finalValue);
 				points.push_back(new Datapoint(it->second[i]->m_name, value));
 			}
 			else if (errno == EPIPE)
@@ -301,7 +331,8 @@ vector<Datapoint *>	points;
 			uint16_t	registerValue;
 			if (modbus_read_input_registers(m_modbus, it->second[i]->m_registerNo, 1, &registerValue) == 1)
 			{
-				DatapointValue value((long)registerValue);
+				double finalValue = it->second[i]->m_offset + (registerValue * it->second[i]->m_scale);
+				DatapointValue value(finalValue);
 				points.push_back(new Datapoint(it->second[i]->m_name, value));
 			}
 			else if (errno == EPIPE)

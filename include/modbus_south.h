@@ -20,40 +20,42 @@ class Modbus {
 		Modbus(const std::string& ip, const unsigned short port);
 		Modbus(const std::string& device, int baud, char parity, int bits, int stopBits);
 		~Modbus();
-		void		setSlave(int slave);
 		void		setDefaultSlave(int slave) { m_defaultSlave = slave; };
 		int		getDefaultSlave() { return m_defaultSlave; };
 		void		setAssetName(const std::string& assetName) { m_assetName = assetName; };
 		void		addRegister(const std::string& value, const unsigned int registerNo)
 				{
-					m_registers.push_back(new Modbus::RegisterMap(value, registerNo));
+					m_registers.push_back(new Modbus::RegisterMap(value, registerNo, 1.0, 0.0));
 				};
 		void		addCoil(const std::string& value, const unsigned int registerNo)
 				{
-					m_coils.push_back(new Modbus::RegisterMap(value, registerNo));
+					m_coils.push_back(new Modbus::RegisterMap(value, registerNo, 1.0, 0.0));
 				};
 		void		addInput(const std::string& value, const unsigned int registerNo)
 				{
-					m_inputs.push_back(new Modbus::RegisterMap(value, registerNo));
+					m_inputs.push_back(new Modbus::RegisterMap(value, registerNo, 1.0, 0.0));
 				};
 		void		addInputRegister(const std::string& value, const unsigned int registerNo)
 				{
-					m_inputRegisters.push_back(new Modbus::RegisterMap(value, registerNo));
+					m_inputRegisters.push_back(new Modbus::RegisterMap(value, registerNo, 1.0, 0.0));
 				};
-		void		addRegister(const int slave, const std::string& value, const unsigned int registerNo);
-		void		addCoil(const int slave, const std::string& value, const unsigned int registerNo);
-		void		addInput(const int slave, const std::string& value, const unsigned int registerNo);
-		void		addInputRegister(const int slave, const std::string& value, const unsigned int registerNo);
+		void		addRegister(const int slave, const std::string& value, const unsigned int registerNo, double scale, double offset);
+		void		addCoil(const int slave, const std::string& value, const unsigned int registerNo, double scale, double offset);
+		void		addInput(const int slave, const std::string& value, const unsigned int registerNo, double scale, double offset);
+		void		addInputRegister(const int slave, const std::string& value, const unsigned int registerNo, double scale, double offset);
 		Reading		takeReading();
 	private:
 		Modbus(const Modbus&);
 		Modbus & 		operator=(const Modbus&);
+		void		setSlave(int slave);
 		class RegisterMap {
 			public:
-				RegisterMap(const std::string& value, const unsigned int registerNo) :
-					m_name(value), m_registerNo(registerNo) {};
+				RegisterMap(const std::string& value, const unsigned int registerNo, double scale, double offset) :
+					m_name(value), m_registerNo(registerNo), m_scale(scale), m_offset(offset) {};
 				const std::string		m_name;
 				const unsigned int		m_registerNo;
+				const double			m_scale;
+				const double			m_offset;
 		};
 		modbus_t			*m_modbus;
 		std::string			m_assetName;

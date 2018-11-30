@@ -44,17 +44,19 @@ using namespace std;
 			"\"type\" : \"integer\", \"default\" : \"1\" }, "\
 		"\"parity\" : { \"description\" : \"Parity to use\", " \
 			"\"type\" : \"string\", \"default\" : \"none\" }, "\
-		"\"slave\" : { \"description\" : \"The Modbus device slave ID\", " \
+		"\"slave\" : { \"description\" : \"The Modbus device default slave ID\", " \
 			"\"type\" : \"integer\", \"default\" : \"1\" }, "\
 		"\"map\" : { \"description\" : \"Modbus register map\", " \
 			"\"type\" : \"JSON\", \"default\" : \"{ " \
-				"\\\"slaves\\\" : [ { " \
-					"\\\"id\\\" : 1, " \
-					"\\\"coils\\\" : { }, " \
-					"\\\"inputs\\\" : { }, " \
-					"\\\"registers\\\" : { \\\"temperature\\\" : 1," \
-				  		  "\\\"humidity\\\" : 2 }," \
-					"\\\"inputRegisters\\\" : { }" \
+				"\\\"values\\\" : [ { " \
+					"\\\"name\\\" : \\\"temperature\\\", " \
+					"\\\"slave\\\" : 1, " \
+					"\\\"register\\\" : 0, " \
+					"\\\"scale\\\" : 0.1, " \
+					"\\\"offset\\\" : 0.0 " \
+					"}, { " \
+					"\\\"name\\\" : \\\"humidity\\\", " \
+					"\\\"register\\\" : 1 " \
 					"} ] " \
 			"}\" } }"
 
@@ -107,7 +109,7 @@ string	device, address;
 						string value = config->getValue("port");
 						port = (unsigned short)atoi(value.c_str());
 					}
-					modbus = new Modbus(address.c_str(), port);
+					modbus = new Modbus(address, port);
 				}
 			}
 		}
@@ -151,7 +153,7 @@ string	device, address;
 					string value = config->getValue("stopBits");
 					stopBits = atoi(value.c_str());
 				}
-				modbus = new Modbus(device.c_str(), baud, parity, bits, stopBits);
+				modbus = new Modbus(device, baud, parity, bits, stopBits);
 			}
 		}
 		else
@@ -162,6 +164,7 @@ string	device, address;
 	else
 	{
 		Logger::getLogger()->fatal("Modbus missing protocol specification");
+		throw runtime_error("Unable to determine modbus protocol");
 	}
 	if (config->itemExists("slave"))
 	{
@@ -183,48 +186,51 @@ string	device, address;
 	doc.Parse(map.c_str());
 	if (!doc.HasParseError())
 	{
-		if (doc.HasMember("slaves") && doc["slaves"].IsArray())
+		if (doc.HasMember("values") && doc["values"].IsArray())
 		{
-			const rapidjson::Value& slaves = doc["slaves"];
-			for (rapidjson::Value::ConstValueIterator itr = slaves.Begin();
-						itr != slaves.End(); ++itr)
+			const rapidjson::Value& values = doc["values"];
+			for (rapidjson::Value::ConstValueIterator itr = values.Begin();
+						itr != values.End(); ++itr)
 			{
-				int id = modbus->getDefaultSlave();
-				if (itr->HasMember("id"))
+				int slaveID = modbus->getDefaultSlave();
+				float scale = 1.0;
+				float offset = 0.0;
+				string name;
+				if (itr->HasMember("slave"))
 				{
-					id = (*itr)["id"].GetInt();
+					slaveID = (*itr)["slave"].GetInt();
 				}
-				if (itr->HasMember("coils") && (*itr)["coils"].IsObject())
+				if (itr->HasMember("name"))
 				{
-					for (rapidjson::Value::ConstMemberIterator itr2 = (*itr)["coils"].MemberBegin();
-								itr2 != (*itr)["coils"].MemberEnd(); ++itr2)
-					{
-						modbus->addCoil(id, itr2->name.GetString(), itr2->value.GetUint());
-					}
+					name = (*itr)["name"].GetString();
 				}
-				if (itr->HasMember("inputs") && (*itr)["inputs"].IsObject())
+				if (itr->HasMember("scale"))
 				{
-					for (rapidjson::Value::ConstMemberIterator itr2 = (*itr)["inputs"].MemberBegin();
-								itr2 != (*itr)["inputs"].MemberEnd(); ++itr2)
-					{
-						modbus->addInput(id, itr2->name.GetString(), itr2->value.GetUint());
-					}
+					scale = (*itr)["scale"].GetFloat();
 				}
-				if (itr->HasMember("registers") && (*itr)["registers"].IsObject())
+				if (itr->HasMember("offset"))
 				{
-					for (rapidjson::Value::ConstMemberIterator itr2 = (*itr)["registers"].MemberBegin();
-								itr2 != (*itr)["registers"].MemberEnd(); ++itr2)
-					{
-						modbus->addRegister(id, itr2->name.GetString(), itr2->value.GetUint());
-					}
+					offset = (*itr)["offset"].GetFloat();
 				}
-				if (itr->HasMember("inputRegisters") && (*itr)["inputRegisters"].IsObject())
+				if (itr->HasMember("coil"))
 				{
-					for (rapidjson::Value::ConstMemberIterator itr2 = (*itr)["inputRegisters"].MemberBegin();
-								itr2 != (*itr)["inputRegisters"].MemberEnd(); ++itr2)
-					{
-						modbus->addInputRegister(id, itr2->name.GetString(), itr2->value.GetUint());
-					}
+					int coil = (*itr)["coil"].GetInt();
+					modbus->addCoil(slaveID, name, coil, scale, offset);
+				}
+				if (itr->HasMember("input"))
+				{
+					int input = (*itr)["input"].GetInt();
+					modbus->addInput(slaveID, name, input, scale, offset);
+				}
+				if (itr->HasMember("register"))
+				{
+					int regNo = (*itr)["register"].GetInt();
+					modbus->addRegister(slaveID, name, regNo, scale, offset);
+				}
+				if (itr->HasMember("inputRegister"))
+				{
+					int regNo = (*itr)["inputRegister"].GetInt();
+					modbus->addInputRegister(slaveID, name, regNo, scale, offset);
 				}
 			}
 		}
@@ -282,7 +288,7 @@ Reading plugin_poll(PLUGIN_HANDLE *handle)
 Modbus *modbus = (Modbus *)handle;
 
 	if (!handle)
-		throw exception();
+		throw runtime_error("Bad plugin handle");
 	return modbus->takeReading();
 }
 
@@ -302,6 +308,8 @@ void plugin_shutdown(PLUGIN_HANDLE *handle)
 {
 Modbus *modbus = (Modbus *)handle;
 
+	if (!handle)
+		throw runtime_error("Bad plugin handle");
 	delete modbus;
 }
 };
