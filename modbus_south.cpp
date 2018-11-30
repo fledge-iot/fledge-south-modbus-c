@@ -195,7 +195,7 @@ vector<Datapoint *>	points;
 	}
 
 	/*
-	 * First do the readings from the default slave.
+	 * First do the readings from the default slave. This is really here to support backward compatibility.
 	 */
 	setSlave(m_defaultSlave);
 	for (int i = 0; i < m_coils.size(); i++)
@@ -268,7 +268,7 @@ vector<Datapoint *>	points;
 		}
 	}
 	/*
-	 * Now iterate on the slaves
+	 * Now process items defined using the newer flexible configuration mechanism
 	 */
 	for (auto it = m_slaveCoils.cbegin(); it != m_slaveCoils.cend(); it++)
 	{

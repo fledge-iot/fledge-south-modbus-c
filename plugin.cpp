@@ -22,6 +22,26 @@ using namespace std;
 
 /**
  * Default configuration
+ *
+ * Note, this plugin supports two distinct Modbus maps, the original simple map
+ * that allowed a single Modbus slave per plugin and a newer more flexible map.
+ * It is recommended that any new implementation use the newer, flexible map format.
+ *
+ * Flexible map format:
+ *	map : values [ <item map>, ... ]
+ *
+ *	item map : {
+ *		name : <datapoint name>,
+ *		slave : <optional slave id>,
+ *		scale : <optional scale multiplier to apply>,
+ *		offset : <optional data offset to add>,
+ *		<modbus register>
+ *
+ *	modbus register :
+ *		coil : <coil number>
+ *		| input : <input status number>
+ *		| register : <holding register number>
+ *		| inputRegister : <input register number>
  */
 #define CONFIG	"{\"plugin\" : { \"description\" : \"Modbus TCP and RTU C south plugin\", " \
 			"\"type\" : \"string\", \"default\" : \"ModbusC\" }, " \
