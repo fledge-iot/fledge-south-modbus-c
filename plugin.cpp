@@ -22,6 +22,26 @@ using namespace std;
 
 /**
  * Default configuration
+ *
+ * Note, this plugin supports two distinct Modbus maps, the original simple map
+ * that allowed a single Modbus slave per plugin and a newer more flexible map.
+ * It is recommended that any new implementation use the newer, flexible map format.
+ *
+ * Flexible map format:
+ *	map : values [ <item map>, ... ]
+ *
+ *	item map : {
+ *		name : <datapoint name>,
+ *		slave : <optional slave id>,
+ *		scale : <optional scale multiplier to apply>,
+ *		offset : <optional data offset to add>,
+ *		<modbus register>
+ *
+ *	modbus register :
+ *		coil : <coil number>
+ *		| input : <input status number>
+ *		| register : <holding register number>
+ *		| inputRegister : <input register number>
  */
 #define CONFIG	"{\"plugin\" : { \"description\" : \"Modbus TCP and RTU C south plugin\", " \
 			"\"type\" : \"string\", \"default\" : \"ModbusC\" }, " \
@@ -44,15 +64,20 @@ using namespace std;
 			"\"type\" : \"integer\", \"default\" : \"1\" }, "\
 		"\"parity\" : { \"description\" : \"Parity to use\", " \
 			"\"type\" : \"string\", \"default\" : \"none\" }, "\
-		"\"slave\" : { \"description\" : \"The Modbus device slave ID\", " \
+		"\"slave\" : { \"description\" : \"The Modbus device default slave ID\", " \
 			"\"type\" : \"integer\", \"default\" : \"1\" }, "\
 		"\"map\" : { \"description\" : \"Modbus register map\", " \
 			"\"type\" : \"JSON\", \"default\" : \"{ " \
-				"\\\"coils\\\" : { }, " \
-				"\\\"inputs\\\" : { }, " \
-				"\\\"registers\\\" : { \\\"temperature\\\" : 1," \
-				  		  "\\\"humidity\\\" : 2 }," \
-				"\\\"inputRegisters\\\" : { }" \
+				"\\\"values\\\" : [ { " \
+					"\\\"name\\\" : \\\"temperature\\\", " \
+					"\\\"slave\\\" : 1, " \
+					"\\\"register\\\" : 0, " \
+					"\\\"scale\\\" : 0.1, " \
+					"\\\"offset\\\" : 0.0 " \
+					"}, { " \
+					"\\\"name\\\" : \\\"humidity\\\", " \
+					"\\\"register\\\" : 1 " \
+					"} ] " \
 			"}\" } }"
 
 /**
@@ -104,7 +129,7 @@ string	device, address;
 						string value = config->getValue("port");
 						port = (unsigned short)atoi(value.c_str());
 					}
-					modbus = new Modbus(address.c_str(), port);
+					modbus = new Modbus(address, port);
 				}
 			}
 		}
@@ -113,45 +138,42 @@ string	device, address;
 			if (config->itemExists("device"))
 			{
 				device = config->getValue("device");
-				if (! device.empty())
+				int baud = 9600;
+				char parity = 'N';
+				int bits = 8;
+				int stopBits = 1;
+				if (config->itemExists("baud"))
 				{
-					int baud = 9600;
-					char parity = 'N';
-					int bits = 8;
-					int stopBits = 1;
-					if (config->itemExists("baud"))
-					{
-						string value = config->getValue("baud");
-						baud = atoi(value.c_str());
-					}
-					if (config->itemExists("parity"))
-					{
-						string value = config->getValue("parity");
-						if (value.compare("even") == 0)
-						{
-							parity = 'E';
-						}
-						else if (value.compare("odd") == 0)
-						{
-							parity = 'O';
-						}
-						else if (value.compare("none") == 0)
-						{
-							parity = 'N';
-						}
-					}
-					if (config->itemExists("bits"))
-					{
-						string value = config->getValue("bits");
-						bits = atoi(value.c_str());
-					}
-					if (config->itemExists("stopBits"))
-					{
-						string value = config->getValue("stopBits");
-						stopBits = atoi(value.c_str());
-					}
-					modbus = new Modbus(device.c_str(), baud, parity, bits, stopBits);
+					string value = config->getValue("baud");
+					baud = atoi(value.c_str());
 				}
+				if (config->itemExists("parity"))
+				{
+					string value = config->getValue("parity");
+					if (value.compare("even") == 0)
+					{
+						parity = 'E';
+					}
+					else if (value.compare("odd") == 0)
+					{
+						parity = 'O';
+					}
+					else if (value.compare("none") == 0)
+					{
+						parity = 'N';
+					}
+				}
+				if (config->itemExists("bits"))
+				{
+					string value = config->getValue("bits");
+					bits = atoi(value.c_str());
+				}
+				if (config->itemExists("stopBits"))
+				{
+					string value = config->getValue("stopBits");
+					stopBits = atoi(value.c_str());
+				}
+				modbus = new Modbus(device, baud, parity, bits, stopBits);
 			}
 		}
 		else
@@ -162,10 +184,11 @@ string	device, address;
 	else
 	{
 		Logger::getLogger()->fatal("Modbus missing protocol specification");
+		throw runtime_error("Unable to determine modbus protocol");
 	}
 	if (config->itemExists("slave"))
 	{
-		modbus->setSlave(atoi(config->getValue("slave").c_str()));
+		modbus->setDefaultSlave(atoi(config->getValue("slave").c_str()));
 	}
 
 	if (config->itemExists("asset"))
@@ -183,6 +206,54 @@ string	device, address;
 	doc.Parse(map.c_str());
 	if (!doc.HasParseError())
 	{
+		if (doc.HasMember("values") && doc["values"].IsArray())
+		{
+			const rapidjson::Value& values = doc["values"];
+			for (rapidjson::Value::ConstValueIterator itr = values.Begin();
+						itr != values.End(); ++itr)
+			{
+				int slaveID = modbus->getDefaultSlave();
+				float scale = 1.0;
+				float offset = 0.0;
+				string name;
+				if (itr->HasMember("slave"))
+				{
+					slaveID = (*itr)["slave"].GetInt();
+				}
+				if (itr->HasMember("name"))
+				{
+					name = (*itr)["name"].GetString();
+				}
+				if (itr->HasMember("scale"))
+				{
+					scale = (*itr)["scale"].GetFloat();
+				}
+				if (itr->HasMember("offset"))
+				{
+					offset = (*itr)["offset"].GetFloat();
+				}
+				if (itr->HasMember("coil"))
+				{
+					int coil = (*itr)["coil"].GetInt();
+					modbus->addCoil(slaveID, name, coil, scale, offset);
+				}
+				if (itr->HasMember("input"))
+				{
+					int input = (*itr)["input"].GetInt();
+					modbus->addInput(slaveID, name, input, scale, offset);
+				}
+				if (itr->HasMember("register"))
+				{
+					int regNo = (*itr)["register"].GetInt();
+					modbus->addRegister(slaveID, name, regNo, scale, offset);
+				}
+				if (itr->HasMember("inputRegister"))
+				{
+					int regNo = (*itr)["inputRegister"].GetInt();
+					modbus->addInputRegister(slaveID, name, regNo, scale, offset);
+				}
+			}
+		}
 		if (doc.HasMember("coils") && doc["coils"].IsObject())
 		{
 			for (rapidjson::Value::ConstMemberIterator itr = doc["coils"].MemberBegin();
@@ -237,7 +308,7 @@ Reading plugin_poll(PLUGIN_HANDLE *handle)
 Modbus *modbus = (Modbus *)handle;
 
 	if (!handle)
-		throw new exception();
+		throw runtime_error("Bad plugin handle");
 	return modbus->takeReading();
 }
 
@@ -246,6 +317,8 @@ Modbus *modbus = (Modbus *)handle;
  */
 void plugin_reconfigure(PLUGIN_HANDLE *handle, string& newConfig)
 {
+Modbus		*modbus = (Modbus *)handle;
+ConfigCategory	config("new", newConfig);
 }
 
 /**
@@ -255,6 +328,8 @@ void plugin_shutdown(PLUGIN_HANDLE *handle)
 {
 Modbus *modbus = (Modbus *)handle;
 
+	if (!handle)
+		throw runtime_error("Bad plugin handle");
 	delete modbus;
 }
 };
