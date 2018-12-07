@@ -90,7 +90,7 @@ extern "C" {
  */
 static PLUGIN_INFORMATION info = {
 	"modbus",                 // Name
-	"1.0.0",                  // Version
+	"1.4.5",                  // Version
 	0,    			  // Flags
 	PLUGIN_TYPE_SOUTH,        // Type
 	"1.0.0",                  // Interface version
