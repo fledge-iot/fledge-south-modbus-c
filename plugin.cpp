@@ -44,29 +44,40 @@ using namespace std;
  *		| inputRegister : <input register number>
  */
 #define CONFIG	"{\"plugin\" : { \"description\" : \"Modbus TCP and RTU C south plugin\", " \
-			"\"type\" : \"string\", \"default\" : \"ModbusC\" }, " \
+			"\"type\" : \"string\", \"default\" : \"ModbusC\", \"readonly\": \"true\" }, " \
 		"\"asset\" : { \"description\" : \"Asset name\", "\
-			"\"type\" : \"string\", \"default\" : \"modbus\" }, " \
+			"\"type\" : \"string\", \"default\" : \"modbus\", " \
+			"\"order\": \"1\", \"displayName\": \"Asset Name\" }, " \
 		"\"protocol\" : { \"description\" : \"Protocol\", "\
 			"\"type\" : \"enumeration\", \"default\" : \"RTU\", " \
-			"\"options\" : [ \"RTU\", \"TCP\"] }, " \
+			"\"options\" : [ \"RTU\", \"TCP\"], " \
+			 "\"order\": \"2\", \"displayName\": \"Protocol\" }, " \
 		"\"address\" : { \"description\" : \"Address of Modbus TCP server\", " \
-			"\"type\" : \"string\", \"default\" : \"127.0.0.1\" }, "\
+			"\"type\" : \"string\", \"default\" : \"127.0.0.1\", " \
+			 "\"order\": \"3\", \"displayName\": \"Server Address\" }, "\
 		"\"port\" : { \"description\" : \"Port of Modbus TCP server\", " \
-			"\"type\" : \"integer\", \"default\" : \"2222\" }, "\
+			"\"type\" : \"integer\", \"default\" : \"2222\", " \
+			 "\"order\": \"4\", \"displayName\": \"Port\" }, "\
 		"\"device\" : { \"description\" : \"Device for Modbus RTU\", " \
-			"\"type\" : \"string\", \"default\" : \"\" }, "\
+			"\"type\" : \"string\", \"default\" : \"\", " \
+			 "\"order\": \"5\", \"displayName\": \"Device\" }, "\
 		"\"baud\" : { \"description\" : \"Baud rate  of Modbus RTU\", " \
-			"\"type\" : \"integer\", \"default\" : \"9600\" }, "\
+			"\"type\" : \"integer\", \"default\" : \"9600\", " \
+			 "\"order\": \"6\", \"displayName\": \"Baud Rate\" }, "\
 		"\"bits\" : { \"description\" : \"Number of data bits for Modbus RTU\", " \
-			"\"type\" : \"integer\", \"default\" : \"8\" }, "\
+			"\"type\" : \"integer\", \"default\" : \"8\", " \
+			 "\"order\": \"7\", \"displayName\": \"Number Of Data Bits\" }, "\
 		"\"stopbits\" : { \"description\" : \"Number of stop bits for Modbus RTU\", " \
-			"\"type\" : \"integer\", \"default\" : \"1\" }, "\
+			"\"type\" : \"integer\", \"default\" : \"1\", " \
+			 "\"order\": \"8\", \"displayName\": \"Number Of Stop Bits\" }, "\
 		"\"parity\" : { \"description\" : \"Parity to use\", " \
-			"\"type\" : \"string\", \"default\" : \"none\" }, "\
+			"\"type\" : \"string\", \"default\" : \"none\", " \
+			 "\"order\": \"9\", \"displayName\": \"Parity\" }, "\
 		"\"slave\" : { \"description\" : \"The Modbus device default slave ID\", " \
-			"\"type\" : \"integer\", \"default\" : \"1\" }, "\
+			"\"type\" : \"integer\", \"default\" : \"1\", " \
+			 "\"order\": \"10\", \"displayName\": \"Slave ID\" }, "\
 		"\"map\" : { \"description\" : \"Modbus register map\", " \
+		    "\"order\": \"11\", \"displayName\": \"Register Map\", " \
 			"\"type\" : \"JSON\", \"default\" : \"{ " \
 				"\\\"values\\\" : [ { " \
 					"\\\"name\\\" : \\\"temperature\\\", " \
