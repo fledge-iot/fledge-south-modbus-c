@@ -328,7 +328,7 @@ Modbus *modbus = (Modbus *)handle;
  */
 void plugin_reconfigure(PLUGIN_HANDLE *handle, string& newConfig)
 {
-Modbus		*modbus = (Modbus *)handle;
+Modbus		*modbus = (Modbus *)*handle;
 ConfigCategory	config("new", newConfig);
 }
 
