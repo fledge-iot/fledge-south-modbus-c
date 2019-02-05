@@ -11,6 +11,8 @@
 #include <reading.h>
 #include <logger.h>
 
+#define DEBUG	1
+
 using namespace std;
 
 /**
@@ -188,7 +190,8 @@ vector<Reading *>	*values = new vector<Reading *>();
 		errno = 0;
 		if (modbus_connect(m_modbus) == -1)
 		{
-			Logger::getLogger()->error("Failed to connect to Modbus device: %s", modbus_strerror(errno));
+			Logger::getLogger()->error("Failed to connect to Modbus device %s: %s",
+				(m_tcp ? m_address : m_device), modbus_strerror(errno));
 			return values;
 		}
 		m_connected = true;
@@ -360,7 +363,7 @@ void Modbus::addModbusValue(vector<Reading *> *readings, const string& assetName
 	bool found = false;
 	for (auto it = readings->begin(); it != readings->end(); it++)
 	{
-		if ((*it)->getAssetName().compare(asset))
+		if ((*it)->getAssetName().compare(asset) == 0)
 		{
 			(*it)->addDatapoint(datapoint);
 			found = true;

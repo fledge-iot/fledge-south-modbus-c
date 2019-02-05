@@ -228,8 +228,8 @@ string	device, address;
 				int slaveID = modbus->getDefaultSlave();
 				float scale = 1.0;
 				float offset = 0.0;
-				string name;
-				string assetName;
+				string name = "";
+				string assetName = "";
 				if (itr->HasMember("slave"))
 				{
 					slaveID = (*itr)["slave"].GetInt();
@@ -240,7 +240,7 @@ string	device, address;
 				}
 				if (itr->HasMember("assetName"))
 				{
-					name = (*itr)["assetName"].GetString();
+					assetName = (*itr)["assetName"].GetString();
 				}
 				if (itr->HasMember("scale"))
 				{
