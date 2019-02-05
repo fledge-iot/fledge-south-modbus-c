@@ -46,7 +46,7 @@ using namespace std;
  */
 #define CONFIG	"{\"plugin\" : { \"description\" : \"Modbus TCP and RTU C south plugin\", " \
 			"\"type\" : \"string\", \"default\" : \"ModbusC\", \"readonly\": \"true\" }, " \
-		"\"asset\" : { \"description\" : \"Asset name\", "\
+		"\"asset\" : { \"description\" : \"Default asset name\", "\
 			"\"type\" : \"string\", \"default\" : \"modbus\", " \
 			"\"order\": \"1\", \"displayName\": \"Asset Name\" }, " \
 		"\"protocol\" : { \"description\" : \"Protocol\", "\
@@ -83,6 +83,7 @@ using namespace std;
 				"\\\"values\\\" : [ { " \
 					"\\\"name\\\" : \\\"temperature\\\", " \
 					"\\\"slave\\\" : 1, " \
+					"\\\"assetName\\\" : \\\"Booth1\\\", " \
 					"\\\"register\\\" : 0, " \
 					"\\\"scale\\\" : 0.1, " \
 					"\\\"offset\\\" : 0.0 " \
@@ -105,7 +106,7 @@ static PLUGIN_INFORMATION info = {
 	VERSION,                  // Version
 	0,    			  // Flags
 	PLUGIN_TYPE_SOUTH,        // Type
-	"1.0.0",                  // Interface version
+	"2.0.0",                  // Interface version
 	CONFIG			  // Default configuration
 };
 
@@ -228,6 +229,7 @@ string	device, address;
 				float scale = 1.0;
 				float offset = 0.0;
 				string name;
+				string assetName;
 				if (itr->HasMember("slave"))
 				{
 					slaveID = (*itr)["slave"].GetInt();
@@ -235,6 +237,10 @@ string	device, address;
 				if (itr->HasMember("name"))
 				{
 					name = (*itr)["name"].GetString();
+				}
+				if (itr->HasMember("assetName"))
+				{
+					name = (*itr)["assetName"].GetString();
 				}
 				if (itr->HasMember("scale"))
 				{
@@ -247,22 +253,22 @@ string	device, address;
 				if (itr->HasMember("coil"))
 				{
 					int coil = (*itr)["coil"].GetInt();
-					modbus->addCoil(slaveID, name, coil, scale, offset);
+					modbus->addCoil(slaveID, assetName, name, coil, scale, offset);
 				}
 				if (itr->HasMember("input"))
 				{
 					int input = (*itr)["input"].GetInt();
-					modbus->addInput(slaveID, name, input, scale, offset);
+					modbus->addInput(slaveID, assetName, name, input, scale, offset);
 				}
 				if (itr->HasMember("register"))
 				{
 					int regNo = (*itr)["register"].GetInt();
-					modbus->addRegister(slaveID, name, regNo, scale, offset);
+					modbus->addRegister(slaveID, assetName, name, regNo, scale, offset);
 				}
 				if (itr->HasMember("inputRegister"))
 				{
 					int regNo = (*itr)["inputRegister"].GetInt();
-					modbus->addInputRegister(slaveID, name, regNo, scale, offset);
+					modbus->addInputRegister(slaveID, assetName, name, regNo, scale, offset);
 				}
 			}
 		}
@@ -315,7 +321,7 @@ void plugin_start(PLUGIN_HANDLE *handle)
 /**
  * Poll for a plugin reading
  */
-Reading plugin_poll(PLUGIN_HANDLE *handle)
+std::vector<Reading *> *plugin_poll(PLUGIN_HANDLE *handle)
 {
 Modbus *modbus = (Modbus *)handle;
 
