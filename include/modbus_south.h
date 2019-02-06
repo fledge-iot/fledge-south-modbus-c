@@ -60,6 +60,7 @@ class Modbus {
 				const unsigned int		m_registerNo;
 				const double			m_scale;
 				const double			m_offset;
+				double	round(double value, int bits);
 		};
 		modbus_t			*m_modbus;
 		std::string			m_assetName;

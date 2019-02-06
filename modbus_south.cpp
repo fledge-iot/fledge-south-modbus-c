@@ -10,6 +10,7 @@
 #include <modbus_south.h>
 #include <reading.h>
 #include <logger.h>
+#include <math.h>
 
 #define DEBUG	1
 
@@ -300,6 +301,7 @@ vector<Reading *>	*values = new vector<Reading *>();
 			if (modbus_read_input_bits(m_modbus, it->second[i]->m_registerNo, 1, &inputValue) == 1)
 			{
 				double finalValue = it->second[i]->m_offset + (inputValue * it->second[i]->m_scale);
+				finalValue = it->second[i]->round(finalValue, 8);
 				DatapointValue value(finalValue);
 				addModbusValue(values, it->second[i]->m_assetName, new Datapoint(it->second[i]->m_name, value));
 			}
@@ -318,6 +320,7 @@ vector<Reading *>	*values = new vector<Reading *>();
 			if (modbus_read_registers(m_modbus, it->second[i]->m_registerNo, 1, &registerValue) == 1)
 			{
 				double finalValue = it->second[i]->m_offset + (registerValue * it->second[i]->m_scale);
+				finalValue = it->second[i]->round(finalValue, 16);
 				DatapointValue value(finalValue);
 				addModbusValue(values, it->second[i]->m_assetName, new Datapoint(it->second[i]->m_name, value));
 			}
@@ -336,6 +339,7 @@ vector<Reading *>	*values = new vector<Reading *>();
 			if (modbus_read_input_registers(m_modbus, it->second[i]->m_registerNo, 1, &registerValue) == 1)
 			{
 				double finalValue = it->second[i]->m_offset + (registerValue * it->second[i]->m_scale);
+				finalValue = it->second[i]->round(finalValue, 16);
 				DatapointValue value(finalValue);
 				addModbusValue(values, it->second[i]->m_assetName, new Datapoint(it->second[i]->m_name, value));
 			}
@@ -373,4 +377,33 @@ void Modbus::addModbusValue(vector<Reading *> *readings, const string& assetName
 	{
 		readings->push_back(new Reading(asset, datapoint));
 	}
+}
+
+/**
+ * Automatically round a result to an appropriate number of
+ * decimal places based on the scale and offset.
+ *
+ * The number of decimals is calcaulted by determining the range
+ * of the value (0 to 2^bits - 1) * scale + offset. Then taking
+ * the log base 10 of 1 / the slope of the line that wudl be created
+ * if this range was graphed.
+ *
+ * @param	value	The value to round
+ * @param	bits	The numebr of bits that represent the range
+ */
+double Modbus::RegisterMap::round(double value, int bits)
+{
+	if (m_scale == 1.0)
+	{
+		return value;
+	}
+	int fullscale = pow(2, bits) - 1;
+	double min = m_offset;
+	double max = (fullscale * m_scale) + m_offset;
+	double slope = (max - min) / fullscale;
+	double dp = log10(1 / slope);
+
+	int divisor = pow(10, (int)(dp + 0.5));
+
+	return (double)((long)(value * divisor + 0.5)) / divisor;
 }
