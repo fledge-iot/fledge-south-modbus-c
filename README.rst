@@ -14,7 +14,7 @@ and it requires the Linux libmodbus library, this can be installed by running
 Build
 -----
 
-To build usb4704 plugin run the commands:
+To build Modbus C++ plugin run the commands:
 
 .. code-block:: console
 
@@ -82,17 +82,15 @@ This repo contains the scripts used to create a foglamp-south-modbusc Debian pac
 The make_deb script
 ===================
 
-Run the make_deb command after compiling the plugin:
+Run the make_deb command after installing libmodbus-dev:
 
 .. code-block:: console
 
   $ ./make_deb help
-  make_deb {x86|arm} [help|clean|cleanall]
+  make_deb [help|clean|cleanall]
   This script is used to create the Debian package of FoglAMP C++ 'modbusc' south plugin
   Arguments:
    help     - Display this help text
-   x86      - Build an x86_64 package
-   arm      - Build an armv7l package
    clean    - Remove all the old versions saved in format .XXXX
    cleanall - Remove all the versions, including the last one
   $
