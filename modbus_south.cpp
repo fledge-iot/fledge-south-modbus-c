@@ -22,7 +22,11 @@ using namespace std;
 Modbus::Modbus(const string& ip, const unsigned short port) :
 	m_address(ip), m_port(port), m_device(""), m_tcp(true)
 {
-	m_modbus = modbus_new_tcp(ip.c_str(), port);
+	if ((m_modbus = modbus_new_tcp(ip.c_str(), port)) == NULL)
+	{
+		Logger::getLogger()->fatal("Modbus plugin failed to create modbus context, %s", modbus_strerror(errno));
+		throw runtime_error("No modbus context");
+	}
 #if DEBUG
 	modbus_set_debug(m_modbus, true);
 #endif
@@ -44,7 +48,11 @@ Modbus::Modbus(const string& ip, const unsigned short port) :
 Modbus::Modbus(const string& device, int baud, char parity, int bits, int stopBits) :
 	m_device(device), m_address(""), m_port(0), m_tcp(false)
 {
-	m_modbus = modbus_new_rtu(device.c_str(), baud, parity, bits, stopBits);
+	if ((m_modbus = modbus_new_rtu(device.c_str(), baud, parity, bits, stopBits)) == NULL)
+	{
+		Logger::getLogger()->fatal("Modbus plugin failed to create modbus context, %s", modbus_strerror(errno));
+		throw runtime_error("No modbus context");
+	}
 #if DEBUG
 	modbus_set_debug(m_modbus, true);
 #endif
