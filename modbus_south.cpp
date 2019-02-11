@@ -12,7 +12,7 @@
 #include <logger.h>
 #include <math.h>
 
-#define DEBUG	1
+#define DEBUG	0
 
 using namespace std;
 
