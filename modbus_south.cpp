@@ -17,53 +17,13 @@
 using namespace std;
 
 /**
- * Constructor for the modbus interface for a TCP connection
+ * Constructor for the modbus interface, in this case it is a shell
+ * that is awaiting configuration 
  */
-Modbus::Modbus(const string& ip, const unsigned short port) :
-	m_address(ip), m_port(port), m_device(""), m_tcp(true)
+Modbus::Modbus() : m_modbus(0)
 {
-	if ((m_modbus = modbus_new_tcp(ip.c_str(), port)) == NULL)
-	{
-		Logger::getLogger()->fatal("Modbus plugin failed to create modbus context, %s", modbus_strerror(errno));
-		throw runtime_error("No modbus context");
-	}
-#if DEBUG
-	modbus_set_debug(m_modbus, true);
-#endif
-	errno = 0;
-	if (modbus_connect(m_modbus) == -1)
-	{
-		Logger::getLogger()->error("Failed to connect to Modbus TCP server %s", modbus_strerror(errno));
-		m_connected = false;
-	}
-	else
-	{
-		Logger::getLogger()->info("Modbus TCP connected %s:%d", m_address.c_str(), m_port);
-	}
 }
 
-/**
- * Constructor for the modbus interface for a serial connection
- */
-Modbus::Modbus(const string& device, int baud, char parity, int bits, int stopBits) :
-	m_device(device), m_address(""), m_port(0), m_tcp(false)
-{
-	if ((m_modbus = modbus_new_rtu(device.c_str(), baud, parity, bits, stopBits)) == NULL)
-	{
-		Logger::getLogger()->fatal("Modbus plugin failed to create modbus context, %s", modbus_strerror(errno));
-		throw runtime_error("No modbus context");
-	}
-#if DEBUG
-	modbus_set_debug(m_modbus, true);
-#endif
-	if (modbus_connect(m_modbus) == -1)
-	{
-		Logger::getLogger()->error("Failed to connect to Modbus RTU device:  %s", modbus_strerror(errno));
-		m_connected = false;
-	}
-	m_connected = true;
-	Logger::getLogger()->info("Modbus RTU connected to %s",  m_device.c_str());
-}
 /**
  * Destructor for the modbus interface
  */
@@ -90,6 +50,340 @@ Modbus::~Modbus()
 		delete *it;
 	}
 	modbus_free(m_modbus);
+}
+
+/**
+ * Populate the Modbus plugin shell with a connection to a real modbus device.
+ * If a connection already exists then we are called as part of reconfiguration
+ * and we should tear down that confoiguration.
+ */
+void Modbus::createModbus()
+{
+	if (m_modbus)
+	{
+		modbus_free(m_modbus);
+	}
+	if (m_tcp)
+	{
+		if ((m_modbus = modbus_new_tcp(m_address.c_str(), m_port)) == NULL)
+		{
+			Logger::getLogger()->fatal("Modbus plugin failed to create modbus context, %s", modbus_strerror(errno));
+			throw runtime_error("No modbus context");
+		}
+	}
+	else
+	{
+		if ((m_modbus = modbus_new_rtu(m_device.c_str(), m_baud, m_parity, m_bits, m_stopBits)) == NULL)
+		{
+			Logger::getLogger()->fatal("Modbus plugin failed to create modbus context, %s", modbus_strerror(errno));
+			throw runtime_error("No modbus context");
+		}
+	}
+#if DEBUG
+	modbus_set_debug(m_modbus, true);
+#endif
+	errno = 0;
+	if (modbus_connect(m_modbus) == -1)
+	{
+		Logger::getLogger()->error("Failed to connect to Modbus TCP server %s", modbus_strerror(errno));
+		m_connected = false;
+	}
+	else
+	{
+		Logger::getLogger()->info("Modbus TCP connected %s:%d", m_address.c_str(), m_port);
+	}
+	if (m_tcp)
+	{
+		if (modbus_connect(m_modbus) == -1)
+		{
+			Logger::getLogger()->error("Failed to connect to Modbus RTU device:  %s", modbus_strerror(errno));
+			m_connected = false;
+		}
+	}
+#if DEBUG
+	modbus_set_debug(m_modbus, true);
+#endif
+	if (m_tcp)
+	{
+		errno = 0;
+		if (modbus_connect(m_modbus) == -1)
+		{
+			Logger::getLogger()->error("Failed to connect to Modbus TCP server %s, %s", m_address.c_str(), modbus_strerror(errno));
+			m_connected = false;
+			return;
+		}
+
+	}
+	else
+	{
+		m_connected = true;
+	}
+	Logger::getLogger()->info("Modbus %s connected to %s",  (m_tcp ? "TCP" : "RTU"), (m_tcp ? m_address.c_str() : m_device.c_str()));
+}
+
+/**
+ * Configure the modbus plugin
+ *
+ * @param config	The configuration category
+ */
+void Modbus::configure(ConfigCategory *config)
+{
+string	device, address;
+bool	recreate = false;
+
+	lock_guard<mutex> guard(m_configMutex);
+	if (config->itemExists("protocol"))
+	{
+		string proto = config->getValue("protocol");
+		if (!proto.compare("TCP"))
+		{
+			if (!m_tcp)
+			{
+				recreate = true;
+				m_tcp = true;
+			}
+			if (config->itemExists("address"))
+			{
+				address = config->getValue("address");
+				if (address.compare(m_address))
+				{
+					m_address = address;
+					recreate = true;
+				}
+				if (! address.empty())		// Not empty
+				{
+					unsigned short port = 502;
+					if (config->itemExists("port"))
+					{
+						string value = config->getValue("port");
+						int port = (unsigned short)atoi(value.c_str());
+						if (m_port != port)
+						{
+							m_port = port;
+							recreate = true;
+						}
+					}
+				}
+			}
+		}
+		else if (!proto.compare("RTU"))
+		{
+			if (m_tcp)
+			{
+				recreate = true;
+				m_tcp = false;
+			}
+			if (config->itemExists("device"))
+			{
+				device = config->getValue("device");
+				int baud = 9600;
+				char parity = 'N';
+				int bits = 8;
+				int stopBits = 1;
+				if (config->itemExists("baud"))
+				{
+					string value = config->getValue("baud");
+					baud = atoi(value.c_str());
+				}
+				if (config->itemExists("parity"))
+				{
+					string value = config->getValue("parity");
+					if (value.compare("even") == 0)
+					{
+						parity = 'E';
+					}
+					else if (value.compare("odd") == 0)
+					{
+						parity = 'O';
+					}
+					else if (value.compare("none") == 0)
+					{
+						parity = 'N';
+					}
+				}
+				if (config->itemExists("bits"))
+				{
+					string value = config->getValue("bits");
+					bits = atoi(value.c_str());
+				}
+				if (config->itemExists("stopBits"))
+				{
+					string value = config->getValue("stopBits");
+					stopBits = atoi(value.c_str());
+				}
+				if (m_device.compare(device) != 0)
+				{
+					m_device = device;
+					recreate = true;
+				}
+				if (m_baud != baud)
+				{
+					m_baud = baud;
+					recreate = true;
+				}
+				if (m_parity != parity)
+				{
+					m_parity = parity;
+					recreate = true;
+				}
+				if (m_bits != bits)
+				{
+					m_bits = bits;
+					recreate = true;
+				}
+				if (m_stopBits != stopBits)
+				{
+					m_stopBits = stopBits;
+					recreate = true;
+				}
+			}
+		}
+		else
+		{
+			Logger::getLogger()->fatal("Modbus must specify either RTU or TCP as protocol");
+		}
+	}
+	else
+	{
+		Logger::getLogger()->fatal("Modbus missing protocol specification");
+		throw runtime_error("Unable to determine modbus protocol");
+	}
+	
+	if (recreate)
+	{
+		createModbus();
+	}
+
+	if (config->itemExists("slave"))
+	{
+		setDefaultSlave(atoi(config->getValue("slave").c_str()));
+	}
+
+	if (config->itemExists("asset"))
+	{
+		setAssetName(config->getValue("asset"));
+	}
+	else
+	{
+		setAssetName("modbus");
+	}
+
+	/*
+	 * Remove any previous map
+	 */
+	for (vector<RegisterMap *>::const_iterator it = m_registers.cbegin();
+			it != m_registers.cend(); ++it)
+	{
+		delete *it;
+	}
+	for (vector<RegisterMap *>::const_iterator it = m_coils.cbegin();
+			it != m_coils.cend(); ++it)
+	{
+		delete *it;
+	}
+	for (vector<RegisterMap *>::const_iterator it = m_inputs.cbegin();
+			it != m_inputs.cend(); ++it)
+	{
+		delete *it;
+	}
+	for (vector<RegisterMap *>::const_iterator it = m_inputRegisters.cbegin();
+			it != m_inputRegisters.cend(); ++it)
+	{
+		delete *it;
+	}
+
+	// Now process the Modbus regster map
+	string map = config->getValue("map");
+	rapidjson::Document doc;
+	doc.Parse(map.c_str());
+	if (!doc.HasParseError())
+	{
+		if (doc.HasMember("values") && doc["values"].IsArray())
+		{
+			const rapidjson::Value& values = doc["values"];
+			for (rapidjson::Value::ConstValueIterator itr = values.Begin();
+						itr != values.End(); ++itr)
+			{
+				int slaveID = getDefaultSlave();
+				float scale = 1.0;
+				float offset = 0.0;
+				string name = "";
+				string assetName = "";
+				if (itr->HasMember("slave"))
+				{
+					slaveID = (*itr)["slave"].GetInt();
+				}
+				if (itr->HasMember("name"))
+				{
+					name = (*itr)["name"].GetString();
+				}
+				if (itr->HasMember("assetName"))
+				{
+					assetName = (*itr)["assetName"].GetString();
+				}
+				if (itr->HasMember("scale"))
+				{
+					scale = (*itr)["scale"].GetFloat();
+				}
+				if (itr->HasMember("offset"))
+				{
+					offset = (*itr)["offset"].GetFloat();
+				}
+				if (itr->HasMember("coil"))
+				{
+					int coil = (*itr)["coil"].GetInt();
+					addCoil(slaveID, assetName, name, coil, scale, offset);
+				}
+				if (itr->HasMember("input"))
+				{
+					int input = (*itr)["input"].GetInt();
+					addInput(slaveID, assetName, name, input, scale, offset);
+				}
+				if (itr->HasMember("register"))
+				{
+					int regNo = (*itr)["register"].GetInt();
+					addRegister(slaveID, assetName, name, regNo, scale, offset);
+				}
+				if (itr->HasMember("inputRegister"))
+				{
+					int regNo = (*itr)["inputRegister"].GetInt();
+					addInputRegister(slaveID, assetName, name, regNo, scale, offset);
+				}
+			}
+		}
+		if (doc.HasMember("coils") && doc["coils"].IsObject())
+		{
+			for (rapidjson::Value::ConstMemberIterator itr = doc["coils"].MemberBegin();
+						itr != doc["coils"].MemberEnd(); ++itr)
+			{
+				addCoil(itr->name.GetString(), itr->value.GetUint());
+			}
+		}
+		if (doc.HasMember("inputs") && doc["inputs"].IsObject())
+		{
+			for (rapidjson::Value::ConstMemberIterator itr = doc["inputs"].MemberBegin();
+						itr != doc["inputs"].MemberEnd(); ++itr)
+			{
+				addInput(itr->name.GetString(), itr->value.GetUint());
+			}
+		}
+		if (doc.HasMember("registers") && doc["registers"].IsObject())
+		{
+			for (rapidjson::Value::ConstMemberIterator itr = doc["registers"].MemberBegin();
+						itr != doc["registers"].MemberEnd(); ++itr)
+			{
+				addRegister(itr->name.GetString(), itr->value.GetUint());
+			}
+		}
+		if (doc.HasMember("inputRegisters") && doc["inputRegisters"].IsObject())
+		{
+			for (rapidjson::Value::ConstMemberIterator itr = doc["inputRegisters"].MemberBegin();
+						itr != doc["inputRegisters"].MemberEnd(); ++itr)
+			{
+				addInputRegister(itr->name.GetString(), itr->value.GetUint());
+			}
+		}
+	}
 }
 
 /**
@@ -194,13 +488,18 @@ vector<Reading *>	*Modbus::takeReading()
 {
 vector<Reading *>	*values = new vector<Reading *>();
 
+	lock_guard<mutex> guard(m_configMutex);
+	if (!m_modbus)
+	{
+		createModbus();
+	}
 	if (!m_connected)
 	{
 		errno = 0;
 		if (modbus_connect(m_modbus) == -1)
 		{
 			Logger::getLogger()->error("Failed to connect to Modbus device %s: %s",
-				(m_tcp ? m_address : m_device), modbus_strerror(errno));
+				(m_tcp ? m_address.c_str() : m_device.c_str()), modbus_strerror(errno));
 			return values;
 		}
 		m_connected = true;
