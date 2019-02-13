@@ -95,7 +95,7 @@ void Modbus::createModbus()
 	errno = 0;
 	if (modbus_connect(m_modbus) == -1)
 	{
-		Logger::getLogger()->error("Failed to connect to Modbus %d server %s, %s", (m_tcp ? "TCP" : "RTU"),
+		Logger::getLogger()->error("Failed to connect to Modbus %s server %s, %s", (m_tcp ? "TCP" : "RTU"),
 				(m_tcp ? m_address.c_str() : m_device.c_str()), modbus_strerror(errno));
 		m_connected = false;
 	}
