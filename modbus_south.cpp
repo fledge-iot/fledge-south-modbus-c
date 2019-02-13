@@ -13,7 +13,7 @@
 #include <math.h>
 
 /**
- * Set debug mode in the udnerlying modbus context. Set to
+ * Set debug mode in the underlying modbus context. Set to
  * 1 to enable debug or zero to disable it.
  *
  * Note, this debug will appear on standard output.
