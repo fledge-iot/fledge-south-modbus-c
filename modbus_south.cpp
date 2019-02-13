@@ -12,13 +12,22 @@
 #include <logger.h>
 #include <math.h>
 
+/**
+ * Set debug mode in the udnerlying modbus context. Set to
+ * 1 to enable debug or zero to disable it.
+ *
+ * Note, this debug will appear on standard output.
+ */
 #define DEBUG	0
 
 using namespace std;
 
 /**
  * Constructor for the modbus interface, in this case it is a shell
- * that is awaiting configuration 
+ * that is awaiting configuration.
+ *
+ * The actual modbus connection can only be created once we have
+ * configuration data.
  */
 Modbus::Modbus() : m_modbus(0)
 {
@@ -54,8 +63,9 @@ Modbus::~Modbus()
 
 /**
  * Populate the Modbus plugin shell with a connection to a real modbus device.
+ *
  * If a connection already exists then we are called as part of reconfiguration
- * and we should tear down that confoiguration.
+ * and we should tear down that previous modbus context.
  */
 void Modbus::createModbus()
 {
@@ -68,7 +78,7 @@ void Modbus::createModbus()
 		if ((m_modbus = modbus_new_tcp(m_address.c_str(), m_port)) == NULL)
 		{
 			Logger::getLogger()->fatal("Modbus plugin failed to create modbus context, %s", modbus_strerror(errno));
-			throw runtime_error("No modbus context");
+			throw runtime_error("Failed to create modbus context");
 		}
 	}
 	else
@@ -76,7 +86,7 @@ void Modbus::createModbus()
 		if ((m_modbus = modbus_new_rtu(m_device.c_str(), m_baud, m_parity, m_bits, m_stopBits)) == NULL)
 		{
 			Logger::getLogger()->fatal("Modbus plugin failed to create modbus context, %s", modbus_strerror(errno));
-			throw runtime_error("No modbus context");
+			throw runtime_error("Failed to create mnodbus context");
 		}
 	}
 #if DEBUG
@@ -85,44 +95,28 @@ void Modbus::createModbus()
 	errno = 0;
 	if (modbus_connect(m_modbus) == -1)
 	{
-		Logger::getLogger()->error("Failed to connect to Modbus TCP server %s", modbus_strerror(errno));
+		Logger::getLogger()->error("Failed to connect to Modbus %d server %s, %s", (m_tcp ? "TCP" : "RTU"),
+				(m_tcp ? m_address.c_str() : m_device.c_str()), modbus_strerror(errno));
 		m_connected = false;
 	}
 	else
 	{
-		Logger::getLogger()->info("Modbus TCP connected %s:%d", m_address.c_str(), m_port);
-	}
-	if (m_tcp)
-	{
-		if (modbus_connect(m_modbus) == -1)
-		{
-			Logger::getLogger()->error("Failed to connect to Modbus RTU device:  %s", modbus_strerror(errno));
-			m_connected = false;
-		}
-	}
-#if DEBUG
-	modbus_set_debug(m_modbus, true);
-#endif
-	if (m_tcp)
-	{
-		errno = 0;
-		if (modbus_connect(m_modbus) == -1)
-		{
-			Logger::getLogger()->error("Failed to connect to Modbus TCP server %s, %s", m_address.c_str(), modbus_strerror(errno));
-			m_connected = false;
-			return;
-		}
-
-	}
-	else
-	{
+		Logger::getLogger()->info("Modbus %s connected to %s",  (m_tcp ? "TCP" : "RTU"), (m_tcp ? m_address.c_str() : m_device.c_str()));
 		m_connected = true;
 	}
-	Logger::getLogger()->info("Modbus %s connected to %s",  (m_tcp ? "TCP" : "RTU"), (m_tcp ? m_address.c_str() : m_device.c_str()));
 }
 
 /**
- * Configure the modbus plugin
+ * Configure the modbus plugin. This may be either called to do initial
+ * configuration or as a result of a reconfiguration. Hence it must hold
+ * the mutex to prevent data being ingested mid configuration and also
+ * clear out any existing configuration to prevent memory leaks.
+ *
+ * Since the configuration may result in changing the server the plugin
+ * communicates with or the type of connection, the configure routine looks
+ * for changes that might require the underlying modbus context to be
+ * recreated. However it avoids recreating it when i is not required to
+ * do so. 
  *
  * @param config	The configuration category
  */
