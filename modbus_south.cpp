@@ -38,6 +38,7 @@ Modbus::Modbus() : m_modbus(0)
  */
 Modbus::~Modbus()
 {
+	lock_guard<mutex> guard(m_configMutex);
 	for (vector<RegisterMap *>::const_iterator it = m_registers.cbegin();
 			it != m_registers.cend(); ++it)
 	{
