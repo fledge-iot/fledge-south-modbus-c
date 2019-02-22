@@ -75,6 +75,7 @@ target_link_libraries(${PROJECT_NAME} ${NEEDED_FOGLAMP_LIBS})
 
 # Add additional libraries
 target_link_libraries(${PROJECT_NAME} -lmodbus)
+target_link_libraries(${PROJECT_NAME} -lm)
 
 # Set the build version 
 set_target_properties(${PROJECT_NAME} PROPERTIES SOVERSION 1)
