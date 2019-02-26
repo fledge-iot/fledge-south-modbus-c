@@ -119,7 +119,7 @@ if [ "$(dpkg -s libmodbus-dev | grep Status)" == "Status: install ok installed" 
   echo "libmodbus-dev library is installed"
 else 
   echo "libmodbus-dev library is not present on the machine, please install before building the package"
-  echo "sudo apt-get install libmodbus-dev" 
+  ./requirements.sh
   exit 1
 fi
 rm -rf build; mkdir ./build; cd ./build; cmake ..; make; cd ..
