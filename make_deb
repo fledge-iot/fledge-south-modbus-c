@@ -118,7 +118,7 @@ libdir=${FOGLAMP_ROOT}/cmake_build/C/lib; [ -d ${libdir} ] && LD_LIBRARY_PATH=$(
 if [ "$(dpkg -s libmodbus-dev | grep Status)" == "Status: install ok installed" ]; then 
   echo "libmodbus-dev library is installed"
 else 
-  echo "libmodbus-dev library is not present on the machine, please install before building the package"
+  echo "libmodbus-dev library is not present on the machine, installing before building the package"
   ./requirements.sh
   exit 1
 fi

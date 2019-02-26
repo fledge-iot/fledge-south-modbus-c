@@ -32,4 +32,4 @@ set_files_ownership () {
 }
 
 set_files_ownership
-echo "ModbusC plugin is installed"
+echo "Modbus C plugin is installed"
