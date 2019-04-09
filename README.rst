@@ -2,14 +2,15 @@
 Modbus C/C++ South plugin 
 ========================================================================
 
-NOTE:
+Installation
+------------
 
 This modbus plugin supports modbus-tcp and modbus-rtu.
-and it requires the Linux libmodbus library, this can be installed by running
+and it requires the Linux libmodbus library, this can be installed with given `requirements.sh <requirements.sh>`_ or the following steps:
 
 .. code-block:: console
 
-  $ apt-get install libmodbus-dev
+  $ sudo apt install -y libmodbus-dev
 
 Build
 -----
