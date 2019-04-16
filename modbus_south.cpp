@@ -125,6 +125,7 @@ void Modbus::configure(ConfigCategory *config)
 {
 string	device, address;
 bool	recreate = false;
+Logger	*log = Logger::getLogger();
 
 	lock_guard<mutex> guard(m_configMutex);
 	if (config->itemExists("protocol"))
@@ -310,7 +311,14 @@ bool	recreate = false;
 				string assetName = "";
 				if (itr->HasMember("slave"))
 				{
-					slaveID = (*itr)["slave"].GetInt();
+					if (! (*itr)["slave"].IsInt())
+					{
+						log->error("The value of slave in the modbus map should be an integer");
+					}
+					else
+					{
+						slaveID = (*itr)["slave"].GetInt();
+					}
 				}
 				if (itr->HasMember("name"))
 				{
@@ -322,11 +330,25 @@ bool	recreate = false;
 				}
 				if (itr->HasMember("scale"))
 				{
-					scale = (*itr)["scale"].GetFloat();
+					if (! (*itr)["scale"].IsNumber())
+					{
+						log->error("The value of scale in the modbus map should be a floating point number");
+					}
+					else
+					{
+						scale = (*itr)["scale"].GetFloat();
+					}
 				}
 				if (itr->HasMember("offset"))
 				{
-					offset = (*itr)["offset"].GetFloat();
+					if (! (*itr)["offset"].IsNumber())
+					{
+						log->error("The value of offset  in the modbus map should be a floating point number");
+					}
+					else
+					{
+						offset = (*itr)["offset"].GetFloat();
+					}
 				}
 				if (itr->HasMember("coil"))
 				{
@@ -355,8 +377,15 @@ bool	recreate = false;
 							m_slaveInputs[slaveID].clear();
 						}
 					}
-					int input = (*itr)["input"].GetInt();
-					addInput(slaveID, assetName, name, input, scale, offset);
+					if ((*itr)["input"].IsInt())
+					{
+						int input = (*itr)["input"].GetInt();
+						addInput(slaveID, assetName, name, input, scale, offset);
+					}
+					else
+					{
+						log->error("The input item in the modbus map must be either an integer or an array");
+					}
 				}
 				if (itr->HasMember("register"))
 				{
@@ -370,8 +399,32 @@ bool	recreate = false;
 							m_slaveRegisters[slaveID].clear();
 						}
 					}
-					int regNo = (*itr)["register"].GetInt();
-					addRegister(slaveID, assetName, name, regNo, scale, offset);
+					if ((*itr)["register"].IsInt())
+					{
+						int regNo = (*itr)["register"].GetInt();
+						addRegister(slaveID, assetName, name, regNo, scale, offset);
+					}
+					else if ((*itr)["register"].IsArray())
+					{
+						vector<unsigned int>	words;
+						for (rapidjson::Value::ConstValueIterator itr2 = (*itr)["register"].Begin();
+							itr2 != (*itr)["register"].End(); ++itr2)
+						{
+							if (itr2->IsInt())
+							{
+								words.push_back(itr2->GetInt());
+							}
+							else
+							{
+								log->error("The modbus map register array must contain integer values");
+							}
+						}
+						addRegister(slaveID, assetName, name, words, scale, offset);
+					}
+					else
+					{
+						log->error("The input item in the modbus map must be either an integer or an array");
+					}
 				}
 				if (itr->HasMember("inputRegister"))
 				{
@@ -385,8 +438,32 @@ bool	recreate = false;
 							m_slaveInputRegisters[slaveID].clear();
 						}
 					}
-					int regNo = (*itr)["inputRegister"].GetInt();
-					addInputRegister(slaveID, assetName, name, regNo, scale, offset);
+					if ((*itr)["inputRegister"].IsInt())
+					{
+						int regNo = (*itr)["inputRegister"].GetInt();
+						addInputRegister(slaveID, assetName, name, regNo, scale, offset);
+					}
+					else if ((*itr)["inputRegister"].IsArray())
+					{
+						vector<unsigned int>	words;
+						for (rapidjson::Value::ConstValueIterator itr2 = (*itr)["inputRegister"].Begin();
+							itr2 != (*itr)["inputRegister"].End(); ++itr2)
+						{
+							if (itr2->IsInt())
+							{
+								words.push_back(itr2->GetInt());
+							}
+							else
+							{
+								log->error("The modbus map input register array must contain integer values");
+							}
+						}
+						addInputRegister(slaveID, assetName, name, words, scale, offset);
+					}
+					else
+					{
+						log->error("The input item in the modbus map must be either an integer or an array");
+					}
 				}
 			}
 		}
@@ -469,6 +546,27 @@ void Modbus::addRegister(const int slave, const string& assetName, const string&
 }
 
 /**
+ * Add a registers for a particular slave
+ *
+ * @param slave		The slave ID we are referencing
+ * @param value		The datapoint name for the associated reading
+ * @param registers	The vecror of modbus register numbers
+ */
+void Modbus::addRegister(const int slave, const string& assetName, const string& value, const vector<unsigned int> registers, double scale, double offset)
+{
+	if (m_slaveRegisters.find(slave) != m_slaveRegisters.end())
+	{
+		m_slaveRegisters[slave].push_back(new Modbus::RegisterMap(assetName, value, registers, scale, offset));
+	}
+	else
+	{
+		vector<Modbus::RegisterMap *> empty;
+		m_slaveRegisters.insert(pair<int, vector<Modbus::RegisterMap *> >(slave, empty));
+		m_slaveRegisters[slave].push_back(new Modbus::RegisterMap(assetName, value, registers, scale, offset));
+	}
+}
+
+/**
  * Add a coil for a particular slave
  *
  * @param slave		The slave ID we are referencing
@@ -528,6 +626,27 @@ void Modbus::addInputRegister(const int slave, const string& assetName, const st
 		vector<Modbus::RegisterMap *> empty;
 		m_slaveInputRegisters.insert(pair<int, vector<Modbus::RegisterMap *> >(slave, empty));
 		m_slaveInputRegisters[slave].push_back(new Modbus::RegisterMap(assetName, value, registerNo, scale, offset));
+	}
+}
+
+/**
+ * Add an input registers for a particular slave
+ *
+ * @param slave		The slave ID we are referencing
+ * @param value		The datapoint name for the associated reading
+ * @param registers	The vector of modbus register numbers
+ */
+void Modbus::addInputRegister(const int slave, const string& assetName, const string& value, const vector<unsigned int> registers, double scale, double offset)
+{
+	if (m_slaveInputRegisters.find(slave) != m_slaveInputRegisters.end())
+	{
+		m_slaveInputRegisters[slave].push_back(new Modbus::RegisterMap(assetName, value, registers, scale, offset));
+	}
+	else
+	{
+		vector<Modbus::RegisterMap *> empty;
+		m_slaveInputRegisters.insert(pair<int, vector<Modbus::RegisterMap *> >(slave, empty));
+		m_slaveInputRegisters[slave].push_back(new Modbus::RegisterMap(assetName, value, registers, scale, offset));
 	}
 }
 
@@ -597,7 +716,21 @@ vector<Reading *>	*values = new vector<Reading *>();
 		uint16_t	regValue;
 		int		rc;
 		errno = 0;
-		if ((rc = modbus_read_registers(m_modbus, m_registers[i]->m_registerNo, 1, &regValue)) == 1)
+		if (m_registers[i]->m_isVector)
+		{
+			long regValue = 0;
+			for (int a = 0; a < m_registers[i]->m_registers.size(); a++)
+			{
+				uint16_t val;
+				if ((rc = modbus_read_registers(m_modbus, m_registers[i]->m_registers[a], 1, &val)) == 1)
+				{
+					regValue |= (val << (a * 16));
+				}
+			}
+			DatapointValue value(regValue);
+			addModbusValue(values, "", new Datapoint(m_registers[i]->m_name, value));
+		}
+		else if ((rc = modbus_read_registers(m_modbus, m_registers[i]->m_registerNo, 1, &regValue)) == 1)
 		{
 			DatapointValue value((long)regValue);
 			addModbusValue(values, "", new Datapoint(m_registers[i]->m_name, value));
@@ -616,7 +749,21 @@ vector<Reading *>	*values = new vector<Reading *>();
 		uint16_t	regValue;
 		int		rc;
 		errno = 0;
-		if ((rc = modbus_read_input_registers(m_modbus, m_inputRegisters[i]->m_registerNo, 1, &regValue)) == 1)
+		if (m_inputRegisters[i]->m_isVector)
+		{
+			long regValue = 0;
+			for (int a = 0; a < m_inputRegisters[i]->m_registers.size(); a++)
+			{
+				uint16_t val;
+				if ((rc = modbus_read_input_registers(m_modbus, m_inputRegisters[i]->m_registers[a], 1, &val)) == 1)
+				{
+					regValue |= (val << (a * 16));
+				}
+			}
+			DatapointValue value(regValue);
+			addModbusValue(values, "", new Datapoint(m_inputRegisters[i]->m_name, value));
+		}
+		else if ((rc = modbus_read_input_registers(m_modbus, m_inputRegisters[i]->m_registerNo, 1, &regValue)) == 1)
 		{
 			DatapointValue value((long)regValue);
 			addModbusValue(values, "", new Datapoint(m_inputRegisters[i]->m_name, value));
@@ -675,7 +822,23 @@ vector<Reading *>	*values = new vector<Reading *>();
 		for (int i = 0; i < it->second.size(); i++)
 		{
 			uint16_t	registerValue;
-			if (modbus_read_registers(m_modbus, it->second[i]->m_registerNo, 1, &registerValue) == 1)
+			if (it->second[i]->m_isVector)
+			{
+				unsigned int regValue = 0;
+				for (int a = 0; a < it->second[i]->m_registers.size(); a++)
+				{
+					uint16_t val;
+					if (modbus_read_registers(m_modbus, it->second[i]->m_registers[a], 1, &val) == 1)
+					{
+						regValue |= (val << (a * 16));
+					}
+				}
+				double finalValue = it->second[i]->m_offset + (regValue * it->second[i]->m_scale);
+				finalValue = it->second[i]->round(finalValue, 16);
+				DatapointValue value(finalValue);
+				addModbusValue(values, it->second[i]->m_assetName, new Datapoint(it->second[i]->m_name, value));
+			}
+			else if (modbus_read_registers(m_modbus, it->second[i]->m_registerNo, 1, &registerValue) == 1)
 			{
 				double finalValue = it->second[i]->m_offset + (registerValue * it->second[i]->m_scale);
 				finalValue = it->second[i]->round(finalValue, 16);
@@ -694,7 +857,23 @@ vector<Reading *>	*values = new vector<Reading *>();
 		for (int i = 0; i < it->second.size(); i++)
 		{
 			uint16_t	registerValue;
-			if (modbus_read_input_registers(m_modbus, it->second[i]->m_registerNo, 1, &registerValue) == 1)
+			if (it->second[i]->m_isVector)
+			{
+				unsigned int regValue = 0;
+				for (int a = 0; a < it->second[i]->m_registers.size(); a++)
+				{
+					uint16_t val;
+					if (modbus_read_input_registers(m_modbus, it->second[i]->m_registers[a], 1, &val) == 1)
+					{
+						regValue |= (val << (a * 16));
+					}
+				}
+				double finalValue = it->second[i]->m_offset + (regValue * it->second[i]->m_scale);
+				finalValue = it->second[i]->round(finalValue, 16);
+				DatapointValue value(finalValue);
+				addModbusValue(values, it->second[i]->m_assetName, new Datapoint(it->second[i]->m_name, value));
+			}
+			else if (modbus_read_input_registers(m_modbus, it->second[i]->m_registerNo, 1, &registerValue) == 1)
 			{
 				double finalValue = it->second[i]->m_offset + (registerValue * it->second[i]->m_scale);
 				finalValue = it->second[i]->round(finalValue, 16);

@@ -47,22 +47,28 @@ class Modbus {
 					m_inputRegisters.push_back(new Modbus::RegisterMap(value, registerNo, 1.0, 0.0));
 				};
 		void		addRegister(const int slave, const std::string& assetName, const std::string& value, const unsigned int registerNo, double scale, double offset);
+		void		addRegister(const int slave, const std::string& assetName, const std::string& value, const std::vector<unsigned int> registers, double scale, double offset);
 		void		addCoil(const int slave, const std::string& assetName, const std::string& value, const unsigned int registerNo, double scale, double offset);
 		void		addInput(const int slave, const std::string& assetName, const std::string& value, const unsigned int registerNo, double scale, double offset);
 		void		addInputRegister(const int slave, const std::string& assetName, const std::string& value, const unsigned int registerNo, double scale, double offset);
+		void		addInputRegister(const int slave, const std::string& assetName, const std::string& value, const std::vector<unsigned int> reisters, double scale, double offset);
 		void		setSlave(int slave);
 		void		addModbusValue(std::vector<Reading *> *readings, const std::string& assetName, Datapoint *datapoint);
 		class RegisterMap {
 			public:
 				RegisterMap(const std::string& value, const unsigned int registerNo, double scale, double offset) :
-					m_name(value), m_registerNo(registerNo), m_scale(scale), m_offset(offset), m_assetName("") {};
+					m_name(value), m_registerNo(registerNo), m_scale(scale), m_offset(offset), m_assetName(""), m_isVector(false) {};
 				RegisterMap(const std::string& assetName, const std::string& value, const unsigned int registerNo, double scale, double offset) :
-					m_name(value), m_registerNo(registerNo), m_scale(scale), m_offset(offset), m_assetName(assetName) {};
+					m_name(value), m_registerNo(registerNo), m_scale(scale), m_offset(offset), m_assetName(assetName), m_isVector(false) {};
+				RegisterMap(const std::string& assetName, const std::string& value, const std::vector<unsigned int> registers, double scale, double offset) :
+					m_name(value), m_registers(registers), m_scale(scale), m_offset(offset), m_assetName(assetName), m_isVector(true), m_registerNo(0) {};
 				const std::string		m_assetName;
 				const std::string		m_name;
 				const unsigned int		m_registerNo;
 				const double			m_scale;
 				const double			m_offset;
+				const bool			m_isVector;
+				const std::vector<unsigned int> m_registers;
 				double	round(double value, int bits);
 		};
 		modbus_t			*m_modbus;
