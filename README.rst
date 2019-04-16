@@ -6,7 +6,8 @@ Installation
 ------------
 
 This modbus plugin supports modbus-tcp and modbus-rtu.
-and it requires the Linux libmodbus library, this can be installed with given `requirements.sh <requirements.sh>`_ or the following steps:
+and it requires the Linux libmodbus library, this can be installed with
+given `requirements.sh <requirements.sh>`_ or the following steps:
 
 .. code-block:: console
 
