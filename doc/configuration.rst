@@ -8,7 +8,7 @@ registers into asset data, has been represented. This document covers
 the latest, must flexible mechanism and does not include the earlier,
 simple map functionality.
 
-The modbus confoguration can be broken into two distinct sections;
+The modbus configuration can be broken into two distinct sections;
 
 - The physical connection configuration
 - The mapping modbus registers and coils into asset data
@@ -48,8 +48,8 @@ port
 device
   The device item specifies the physical device to use if the modbus-RTU
   protocol has been specified. This would normally be the /dev entry for
-  a serial device that implements RS-232 or RS-485. This shoudl connect
-  to the hardware interface to whuch your modbus device is connected.
+  a serial device that implements RS-232 or RS-485. This should connect
+  to the hardware interface to which your modbus device is connected.
 
 
 baud
@@ -86,7 +86,7 @@ slave
 
 map
   The JSON object the defines the map of the modbus coils and registers
-  to the asset data that is created.It consists of a JSON document with
+  to the asset data that is created. It consists of a JSON document with
   a single property, ``value`` which is an array of JSON objects, each
   of which becomes an asset value in the data ingested into FogLAMP. The
   following section will go into more detail with regards to this item.
@@ -94,7 +94,8 @@ map
 Modbus map JSON object
 ----------------------
 
-The JSON object that is the value of the ``map`` configuration item is of the form
+The JSON object that is the value of the ``map`` configuration item is
+of the form
 
 ::
 
@@ -130,7 +131,7 @@ slave
   an optional property and if ommited the default slave ID is
   used. Generally if the device you are using only has a single slave
   ID then it is best to set the default slave ID and ommit this property
-  form the modbus map.
+  from the modbus map.
 
 
 assetName
@@ -171,7 +172,7 @@ inputRegister
 
 
 scale
-  Apply an scale factor to the data read in this modbus map entry by
+  Apply a scale factor to the data read in this modbus map entry by
   applying this floating point multiplier to the value read from the
   modbus device. This property is optional and may be ommitted if there
   are no scale requirements for the particular data item.
