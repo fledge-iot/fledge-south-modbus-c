@@ -128,7 +128,7 @@ name
 slave
   The slave ID to use when communicating to the modbus device. This is
   an optional property and if ommited the default slave ID is
-  used. Generally if the device you are usign only has a single slave
+  used. Generally if the device you are using only has a single slave
   ID then it is best to set the default slave ID and ommit this property
   form the modbus map.
 
