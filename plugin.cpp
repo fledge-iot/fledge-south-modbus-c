@@ -72,7 +72,8 @@ using namespace std;
 			"\"type\" : \"integer\", \"default\" : \"1\", " \
 			 "\"order\": \"8\", \"displayName\": \"Number Of Stop Bits\" }, "\
 		"\"parity\" : { \"description\" : \"Parity to use\", " \
-			"\"type\" : \"string\", \"default\" : \"none\", " \
+			"\"type\" : \"enumeration\", \"default\" : \"none\", " \
+			"\"options\" : [ \"none\", \"odd\", \"even\" ], " \
 			 "\"order\": \"9\", \"displayName\": \"Parity\" }, "\
 		"\"slave\" : { \"description\" : \"The Modbus device default slave ID\", " \
 			"\"type\" : \"integer\", \"default\" : \"1\", " \
