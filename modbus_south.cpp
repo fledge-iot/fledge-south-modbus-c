@@ -421,7 +421,7 @@ Logger	*log = Logger::getLogger();
 					}
 					else
 					{
-						log->error("The input item in the %s modbus map must be either an integer or an array", name.c_str());
+						log->error("The input item in the %s modbus map must be either an integer", name.c_str());
 						errorCount++;
 					}
 				}

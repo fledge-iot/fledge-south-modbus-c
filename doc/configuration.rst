@@ -21,7 +21,7 @@ Connection Configuration
 ------------------------
 
 The modbus-c plugin supports two methods of connection to modbus
-devices, direction connection using modbus-rtu or network connection
+devices, direct connection using modbus-rtu or network connection
 using modbus-tcp.
 
 There are a number of configuration items that are related to the
@@ -87,7 +87,7 @@ slave
 map
   The JSON object the defines the map of the modbus coils and registers
   to the asset data that is created. It consists of a JSON document with
-  a single property, ``value`` which is an array of JSON objects, each
+  a single property, ``values`` which is an array of JSON objects, each
   of which becomes an asset value in the data ingested into FogLAMP. The
   following section will go into more detail with regards to this item.
 
@@ -128,9 +128,9 @@ name
 
 slave
   The slave ID to use when communicating to the modbus device. This is
-  an optional property and if ommited the default slave ID is
+  an optional property and if omitted the default slave ID is
   used. Generally if the device you are using only has a single slave
-  ID then it is best to set the default slave ID and ommit this property
+  ID then it is best to set the default slave ID and omit this property
   from the modbus map.
 
 
@@ -138,7 +138,7 @@ assetName
   Put this value into a asset with the name given here rather than the
   default asset name defined for the plugin. This allows data from the
   modbus device to be split into multiple assets rather than a single
-  asset. If ommitted then the default asset name is used.
+  asset. If omitted then the default asset name is used.
 
 
 coil
@@ -174,7 +174,7 @@ inputRegister
 scale
   Apply a scale factor to the data read in this modbus map entry by
   applying this floating point multiplier to the value read from the
-  modbus device. This property is optional and may be ommitted if there
+  modbus device. This property is optional and may be omitted if there
   are no scale requirements for the particular data item.
 
 
