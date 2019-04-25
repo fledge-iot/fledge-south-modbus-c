@@ -5,7 +5,7 @@ The Modbus-C plugin is one of the more complex plugins to configure and
 has changed over the lifetime of the plugin as new functioanlity has been
 added. The main change is in the way the modbus map, which maps the modbus
 registers into asset data, has been represented. This document covers
-the latest, must flexible mechanism and does not include the earlier,
+the latest, most flexible mechanism and does not include the earlier,
 simple map functionality.
 
 The modbus configuration can be broken into two distinct sections;
