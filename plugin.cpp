@@ -21,6 +21,11 @@
 
 using namespace std;
 
+#define TO_STRING(...) DEFER(TO_STRING_)(__VA_ARGS__)
+#define DEFER(x) x
+#define TO_STRING_(...) #__VA_ARGS__
+#define QUOTE(...) TO_STRING(__VA_ARGS__)
+
 /**
  * Default configuration
  *
@@ -44,54 +49,110 @@ using namespace std;
  *		| register : <holding register number>
  *		| inputRegister : <input register number>
  */
-#define CONFIG	"{\"plugin\" : { \"description\" : \"Modbus TCP and RTU C south plugin\", " \
-			"\"type\" : \"string\", \"default\" : \"ModbusC\", \"readonly\": \"true\" }, " \
-		"\"asset\" : { \"description\" : \"Default asset name\", "\
-			"\"type\" : \"string\", \"default\" : \"modbus\", " \
-			"\"order\": \"1\", \"displayName\": \"Asset Name\" }, " \
-		"\"protocol\" : { \"description\" : \"Protocol\", "\
-			"\"type\" : \"enumeration\", \"default\" : \"RTU\", " \
-			"\"options\" : [ \"RTU\", \"TCP\"], " \
-			 "\"order\": \"2\", \"displayName\": \"Protocol\" }, " \
-		"\"address\" : { \"description\" : \"Address of Modbus TCP server\", " \
-			"\"type\" : \"string\", \"default\" : \"127.0.0.1\", " \
-			 "\"order\": \"3\", \"displayName\": \"Server Address\" }, "\
-		"\"port\" : { \"description\" : \"Port of Modbus TCP server\", " \
-			"\"type\" : \"integer\", \"default\" : \"2222\", " \
-			 "\"order\": \"4\", \"displayName\": \"Port\" }, "\
-		"\"device\" : { \"description\" : \"Device for Modbus RTU\", " \
-			"\"type\" : \"string\", \"default\" : \"\", " \
-			 "\"order\": \"5\", \"displayName\": \"Device\" }, "\
-		"\"baud\" : { \"description\" : \"Baud rate  of Modbus RTU\", " \
-			"\"type\" : \"integer\", \"default\" : \"9600\", " \
-			 "\"order\": \"6\", \"displayName\": \"Baud Rate\" }, "\
-		"\"bits\" : { \"description\" : \"Number of data bits for Modbus RTU\", " \
-			"\"type\" : \"integer\", \"default\" : \"8\", " \
-			 "\"order\": \"7\", \"displayName\": \"Number Of Data Bits\" }, "\
-		"\"stopbits\" : { \"description\" : \"Number of stop bits for Modbus RTU\", " \
-			"\"type\" : \"integer\", \"default\" : \"1\", " \
-			 "\"order\": \"8\", \"displayName\": \"Number Of Stop Bits\" }, "\
-		"\"parity\" : { \"description\" : \"Parity to use\", " \
-			"\"type\" : \"string\", \"default\" : \"none\", " \
-			 "\"order\": \"9\", \"displayName\": \"Parity\" }, "\
-		"\"slave\" : { \"description\" : \"The Modbus device default slave ID\", " \
-			"\"type\" : \"integer\", \"default\" : \"1\", " \
-			 "\"order\": \"10\", \"displayName\": \"Slave ID\" }, "\
-		"\"map\" : { \"description\" : \"Modbus register map\", " \
-		    "\"order\": \"11\", \"displayName\": \"Register Map\", " \
-			"\"type\" : \"JSON\", \"default\" : \"{ " \
-				"\\\"values\\\" : [ { " \
-					"\\\"name\\\" : \\\"temperature\\\", " \
-					"\\\"slave\\\" : 1, " \
-					"\\\"assetName\\\" : \\\"Booth1\\\", " \
-					"\\\"register\\\" : 0, " \
-					"\\\"scale\\\" : 0.1, " \
-					"\\\"offset\\\" : 0.0 " \
-					"}, { " \
-					"\\\"name\\\" : \\\"humidity\\\", " \
-					"\\\"register\\\" : 1 " \
-					"} ] " \
-			"}\" } }"
+#define MODBUS_MAP	QUOTE({					\
+		"values" : [					\
+			    {  					\
+				"name"      : "temperature",	\
+				"slave"     : 1,		\
+				"assetName" : "Booth1",		\
+				"register"  : 0,		\
+				"scale"     : 0.1,		\
+				"offset"    : 0.0		\
+			    },					\
+			    { 					\
+				"name"      : "humidity",	\
+				"register"  : 1			\
+		       	    }					\
+			  ]					\
+		})
+
+const char *def_cfg = QUOTE({
+		"plugin" : {
+			"description" : "Modbus TCP and RTU C south plugin",
+			"type" : "string",
+			"default" : "ModbusC",
+			"readonly": "true"
+			},
+		"asset" : {
+			"description" : "Default asset name",
+			"type" : "string",
+			"default" : "modbus", 
+			"order": "1",
+			"displayName": "Asset Name"
+			}, 
+		"protocol" : {
+			"description" : "Protocol",
+			"type" : "enumeration",
+			"default" : "RTU", 
+			"options" : [ "RTU", "TCP"], 
+			"order": "2",
+			"displayName": "Protocol"
+			}, 
+		"address" : {
+			"description" : "Address of Modbus TCP server", 
+			"type" : "string",
+			"default" : "127.0.0.1", 
+			"order": "3",
+			"displayName": "Server Address"
+			},
+		"port" : {
+			"description" : "Port of Modbus TCP server", 
+			"type" : "integer",
+			"default" : "2222", 
+			"order": "4",
+			"displayName": "Port"
+			},
+		"device" : {
+			"description" : "Device for Modbus RTU",
+			"type" : "string",
+			"default" : "",
+			"order": "5",
+			"displayName": "Device"
+			},
+		"baud" : {
+			"description" : "Baud rate  of Modbus RTU",
+			"type" : "integer",
+			"default" : "9600",
+			"order": "6",
+			"displayName": "Baud Rate"
+			},
+		"bits" : {
+			"description" : "Number of data bits for Modbus RTU",
+			"type" : "integer",
+			"default" : "8",
+			"order": "7",
+			"displayName": "Number Of Data Bits"
+			},
+		"stopbits" : {
+			"description" : "Number of stop bits for Modbus RTU",
+			"type" : "integer",
+			"default" : "1",
+			"order": "8",
+			"displayName": "Number Of Stop Bits"
+			},
+		"parity" : {
+			"description" : "Parity to use",
+			"type" : "enumeration",
+			"default" : "none",
+			"options" : [ "none", "odd", "even" ],
+			"order": "9",
+			"displayName": "Parity"
+			},
+		"slave" : {
+			"description" : "The Modbus device default slave ID",
+			"type" : "integer",
+			"default" : "1",
+			"order": "10",
+			"displayName": "Slave ID"
+			},
+		"map" : {
+			"description" : "Modbus register map",
+			"order": "11",
+			"displayName": "Register Map", 
+			"type" : "JSON",
+			"default" : MODBUS_MAP
+			}
+		});
 
 /**
  * The Modbus plugin interface
@@ -107,7 +168,7 @@ static PLUGIN_INFORMATION info = {
 	0,    			  // Flags
 	PLUGIN_TYPE_SOUTH,        // Type
 	"2.0.0",                  // Interface version
-	CONFIG			  // Default configuration
+	def_cfg			  // Default configuration
 };
 
 /**

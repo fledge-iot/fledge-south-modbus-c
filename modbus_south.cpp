@@ -296,6 +296,7 @@ Logger	*log = Logger::getLogger();
 	{
 		if (doc.HasMember("values") && doc["values"].IsArray())
 		{
+			int errorCount = 0;
 			const rapidjson::Value& values = doc["values"];
 			bool coilRegMapDeleted = false; // clear previous map only once
 			bool slaveInputRegMapDeleted = false; // clear previous map only once
@@ -304,6 +305,7 @@ Logger	*log = Logger::getLogger();
 			for (rapidjson::Value::ConstValueIterator itr = values.Begin();
 						itr != values.End(); ++itr)
 			{
+				int rCount = 0;
 				int slaveID = getDefaultSlave();
 				float scale = 1.0;
 				float offset = 0.0;
@@ -314,6 +316,7 @@ Logger	*log = Logger::getLogger();
 					if (! (*itr)["slave"].IsInt())
 					{
 						log->error("The value of slave in the modbus map should be an integer");
+						errorCount++;
 					}
 					else
 					{
@@ -322,17 +325,40 @@ Logger	*log = Logger::getLogger();
 				}
 				if (itr->HasMember("name"))
 				{
-					name = (*itr)["name"].GetString();
+					if ((*itr)["name"].IsString())
+					{
+						name = (*itr)["name"].GetString();
+					}
+					else
+					{
+						log->error("The value of name in the modbus map should be a string");
+						errorCount++;
+					}
+				}
+				else
+				{
+					log->error("Each item in the modbus map must have a name property");
+					errorCount++;
+					continue;
 				}
 				if (itr->HasMember("assetName"))
 				{
-					assetName = (*itr)["assetName"].GetString();
+					if ((*itr)["assetName"].IsString())
+					{
+						assetName = (*itr)["assetName"].GetString();
+					}
+					else
+					{
+						log->error("The value of assetName in the %s modbus map should be a string", name.c_str());
+						errorCount++;
+					}
 				}
 				if (itr->HasMember("scale"))
 				{
 					if (! (*itr)["scale"].IsNumber())
 					{
-						log->error("The value of scale in the modbus map should be a floating point number");
+						log->error("The value of scale in the %s modbus map should be a floating point number", name.c_str());
+						errorCount++;
 					}
 					else
 					{
@@ -343,7 +369,8 @@ Logger	*log = Logger::getLogger();
 				{
 					if (! (*itr)["offset"].IsNumber())
 					{
-						log->error("The value of offset  in the modbus map should be a floating point number");
+						log->error("The value of offset in the %s modbus map should be a floating point number", name.c_str());
+						errorCount++;
 					}
 					else
 					{
@@ -352,6 +379,7 @@ Logger	*log = Logger::getLogger();
 				}
 				if (itr->HasMember("coil"))
 				{
+					rCount++;
 					if (!coilRegMapDeleted)
 					{
 						coilRegMapDeleted = true;
@@ -362,11 +390,20 @@ Logger	*log = Logger::getLogger();
 							m_slaveCoils[slaveID].clear();
 						}
 					}
-					int coil = (*itr)["coil"].GetInt();
-					addCoil(slaveID, assetName, name, coil, scale, offset);
+					if (! (*itr)["coil"].IsNumber())
+					{
+						log->error("The value of coil in the %s modbus map should be a number", name.c_str());
+						errorCount++;
+					}
+					else
+					{
+						int coil = (*itr)["coil"].GetInt();
+						addCoil(slaveID, assetName, name, coil, scale, offset);
+					}
 				}
 				if (itr->HasMember("input"))
 				{
+					rCount++;
 					if (!slaveInputRegMapDeleted)
 					{
 						slaveInputRegMapDeleted = true;
@@ -384,11 +421,13 @@ Logger	*log = Logger::getLogger();
 					}
 					else
 					{
-						log->error("The input item in the modbus map must be either an integer or an array");
+						log->error("The input item in the %s modbus map must be either an integer", name.c_str());
+						errorCount++;
 					}
 				}
 				if (itr->HasMember("register"))
 				{
+					rCount++;
 					if (!slaveRegsDeleted)
 					{
 						slaveRegsDeleted = true;
@@ -416,18 +455,21 @@ Logger	*log = Logger::getLogger();
 							}
 							else
 							{
-								log->error("The modbus map register array must contain integer values");
+								log->error("The modbus map %s register array must contain integer values", name.c_str());
+								errorCount++;
 							}
 						}
 						addRegister(slaveID, assetName, name, words, scale, offset);
 					}
 					else
 					{
-						log->error("The input item in the modbus map must be either an integer or an array");
+						log->error("The input item in the %s modbus map must be either an integer or an array", name.c_str());
+						errorCount++;
 					}
 				}
 				if (itr->HasMember("inputRegister"))
 				{
+					rCount++;
 					if (!slaveInputRegistersRegMapDeleted)
 					{
 						slaveInputRegistersRegMapDeleted = true;
@@ -455,16 +497,32 @@ Logger	*log = Logger::getLogger();
 							}
 							else
 							{
-								log->error("The modbus map input register array must contain integer values");
+								log->error("The %s modbus map input register array must contain integer values", name.c_str());
+								errorCount++;
 							}
 						}
 						addInputRegister(slaveID, assetName, name, words, scale, offset);
 					}
 					else
 					{
-						log->error("The input item in the modbus map must be either an integer or an array");
+						log->error("The input item in the %s modbus map must be either an integer or an array", name.c_str());
+						errorCount++;
 					}
 				}
+				if (rCount == 0)
+				{
+					log->error("%s in map must have one of coil, input, register or inputRegister properties", name.c_str());
+					errorCount++;
+				}
+				else if (rCount > 1)
+				{
+					log->error("%s in map must only have one of coil, input, register or inputRegister properties", name.c_str());
+					errorCount++;
+				}
+			}
+			if (errorCount)
+			{
+				log->error("%d errors encountered in the modbus map", errorCount);
 			}
 		}
 		if (doc.HasMember("coils") && doc["coils"].IsObject())
@@ -511,6 +569,10 @@ Logger	*log = Logger::getLogger();
 				addInputRegister(itr->name.GetString(), itr->value.GetUint());
 			}
 		}
+	}
+	else
+	{
+		log->error("Parse error in modbus map, the map must be a valid JSON object");
 	}
 }
 
