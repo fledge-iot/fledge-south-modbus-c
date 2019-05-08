@@ -61,8 +61,6 @@ endif()
 include_directories(include)
 # Add FogLAMP include dir(s)
 include_directories(${FOGLAMP_INCLUDE_DIRS})
-# Add other include paths
-include_directories(${BIODAQDIR}/inc)
 
 # Add FogLAMP lib path
 link_directories(${FOGLAMP_LIB_DIRS})
