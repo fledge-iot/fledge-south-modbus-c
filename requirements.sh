@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-set -e
 
 which apt >/dev/null 2>&1
 if [ $? -eq 0 ]; then
@@ -7,6 +6,7 @@ if [ $? -eq 0 ]; then
 else
 	which yum >/dev/null 2>&1
 	if [ $? -eq 0 ]; then
-		sudo yum install -y libmodbus-dev
+		sudo yum -y install epel-release
+		sudo yum install -y libmodbus
 	fi
 fi

@@ -8,7 +8,7 @@ plugin_install_dirname=ModbusC
 #   1. Generic packages we depend on in all architectures and package managers
 #   2. Architecture specific packages we depend on
 #   3. Package manager specific packages we depend on
-requirements="foglamp libmodbus"
+requirements="foglamp"
 
 case "$arch" in
 	x84_64)
@@ -20,7 +20,9 @@ case "$arch" in
 esac
 case "$package_manager" in
 	deb)
+		requirements="${requirements},libmodbus-dev"
 		;;
 	rpm)
+		requirements="${requirements},libmodbus"
 		;;
 esac
