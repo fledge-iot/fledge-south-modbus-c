@@ -2,7 +2,7 @@
 #
 plugin_name=modbus
 plugin_type=south
-plugin_install_dirname=modbusC
+plugin_install_dirname=ModbusC
 
 # Now build up the runtime requirements list. This has 3 components
 #   1. Generic packages we depend on in all architectures and package managers
