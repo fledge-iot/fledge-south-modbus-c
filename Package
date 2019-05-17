@@ -23,6 +23,6 @@ case "$package_manager" in
 		requirements="${requirements},libmodbus-dev"
 		;;
 	rpm)
-		requirements="${requirements},libmodbus"
+		requirements="${requirements},epel-release,libmodbus,libmodbus-devel"
 		;;
 esac

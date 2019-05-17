@@ -39,7 +39,9 @@ find_library(Modbus modbus)
 if (NOT Modbus)
 	message(FATAL_ERROR "Modbus library non found.\n"
 			    "  Install it first: \n"
-			    "  $ apt-get install libmodbus-dev")
+			    "  $ apt-get install libmodbus-dev\n"
+			    "  or\n"
+			    "  $ yum install libmodbus-dev")
 	return()
 endif()
 
