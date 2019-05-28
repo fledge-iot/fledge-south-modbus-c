@@ -17,6 +17,8 @@
 #include <map>
 #include <mutex>
 
+#define ITEM_TYPE_FLOAT			0x0001
+
 class Modbus {
 	public:
 		Modbus();
@@ -57,17 +59,19 @@ class Modbus {
 		class RegisterMap {
 			public:
 				RegisterMap(const std::string& value, const unsigned int registerNo, double scale, double offset) :
-					m_name(value), m_registerNo(registerNo), m_scale(scale), m_offset(offset), m_assetName(""), m_isVector(false) {};
+					m_name(value), m_registerNo(registerNo), m_scale(scale), m_offset(offset), m_assetName(""), m_isVector(false), m_flags(0) {};
 				RegisterMap(const std::string& assetName, const std::string& value, const unsigned int registerNo, double scale, double offset) :
-					m_name(value), m_registerNo(registerNo), m_scale(scale), m_offset(offset), m_assetName(assetName), m_isVector(false) {};
+					m_name(value), m_registerNo(registerNo), m_scale(scale), m_offset(offset), m_assetName(assetName), m_isVector(false), m_flags(0) {};
 				RegisterMap(const std::string& assetName, const std::string& value, const std::vector<unsigned int> registers, double scale, double offset) :
-					m_name(value), m_registers(registers), m_scale(scale), m_offset(offset), m_assetName(assetName), m_isVector(true), m_registerNo(0) {};
+					m_name(value), m_registers(registers), m_scale(scale), m_offset(offset), m_assetName(assetName), m_isVector(true), m_registerNo(0), m_flags(0) {};
+				void				setFlag(unsigned long flag) { m_flags |= flag; };
 				const std::string		m_assetName;
 				const std::string		m_name;
 				const unsigned int		m_registerNo;
 				const double			m_scale;
 				const double			m_offset;
 				const bool			m_isVector;
+				unsigned long			m_flags;
 				const std::vector<unsigned int> m_registers;
 				double	round(double value, int bits);
 		};
@@ -96,5 +100,6 @@ class Modbus {
 		bool				m_connected;
 		int				m_defaultSlave;
 		std::mutex			m_configMutex;
+		RegisterMap			*m_lastItem;
 };
 #endif
