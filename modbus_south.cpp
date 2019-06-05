@@ -515,7 +515,7 @@ Logger	*log = Logger::getLogger();
 					if ((*itr)["type"].IsString())
 					{
 						string type = (*itr)["type"].GetString();
-						if (type.compare("float"))
+						if (type.compare("float") == 0)
 						{
 							m_lastItem->setFlag(ITEM_TYPE_FLOAT);
 						}
