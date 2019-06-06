@@ -509,6 +509,22 @@ Logger	*log = Logger::getLogger();
 						errorCount++;
 					}
 				}
+				// Now deal with flags for the item we have just added
+				if (itr->HasMember("type"))
+				{
+					if ((*itr)["type"].IsString())
+					{
+						string type = (*itr)["type"].GetString();
+						if (type.compare("float") == 0)
+						{
+							m_lastItem->setFlag(ITEM_TYPE_FLOAT);
+						}
+					}
+					else
+					{
+						log->error("The type property of %s must be a string", name.c_str());
+					}
+				}
 				if (rCount == 0)
 				{
 					log->error("%s in map must have one of coil, input, register or inputRegister properties", name.c_str());
@@ -595,15 +611,16 @@ void Modbus::setSlave(int slave)
  */
 void Modbus::addRegister(const int slave, const string& assetName, const string& value, const unsigned int registerNo, double scale, double offset)
 {
+	m_lastItem = new Modbus::RegisterMap(assetName, value, registerNo, scale, offset);
 	if (m_slaveRegisters.find(slave) != m_slaveRegisters.end())
 	{
-		m_slaveRegisters[slave].push_back(new Modbus::RegisterMap(assetName, value, registerNo, scale, offset));
+		m_slaveRegisters[slave].push_back(m_lastItem);
 	}
 	else
 	{
 		vector<Modbus::RegisterMap *> empty;
 		m_slaveRegisters.insert(pair<int, vector<Modbus::RegisterMap *> >(slave, empty));
-		m_slaveRegisters[slave].push_back(new Modbus::RegisterMap(assetName, value, registerNo, scale, offset));
+		m_slaveRegisters[slave].push_back(m_lastItem);
 	}
 }
 
@@ -616,15 +633,16 @@ void Modbus::addRegister(const int slave, const string& assetName, const string&
  */
 void Modbus::addRegister(const int slave, const string& assetName, const string& value, const vector<unsigned int> registers, double scale, double offset)
 {
+	m_lastItem = new Modbus::RegisterMap(assetName, value, registers, scale, offset);
 	if (m_slaveRegisters.find(slave) != m_slaveRegisters.end())
 	{
-		m_slaveRegisters[slave].push_back(new Modbus::RegisterMap(assetName, value, registers, scale, offset));
+		m_slaveRegisters[slave].push_back(m_lastItem);
 	}
 	else
 	{
 		vector<Modbus::RegisterMap *> empty;
 		m_slaveRegisters.insert(pair<int, vector<Modbus::RegisterMap *> >(slave, empty));
-		m_slaveRegisters[slave].push_back(new Modbus::RegisterMap(assetName, value, registers, scale, offset));
+		m_slaveRegisters[slave].push_back(m_lastItem);
 	}
 }
 
@@ -637,15 +655,16 @@ void Modbus::addRegister(const int slave, const string& assetName, const string&
  */
 void Modbus::addCoil(const int slave, const string& assetName, const string& value, const unsigned int registerNo, double scale, double offset)
 {
+	m_lastItem = new Modbus::RegisterMap(assetName, value, registerNo, scale, offset);
 	if (m_slaveCoils.find(slave) != m_slaveCoils.end())
 	{
-		m_slaveCoils[slave].push_back(new Modbus::RegisterMap(assetName, value, registerNo, scale, offset));
+		m_slaveCoils[slave].push_back(m_lastItem);
 	}
 	else
 	{
 		vector<Modbus::RegisterMap *> empty;
 		m_slaveCoils.insert(pair<int, vector<Modbus::RegisterMap *> >(slave, empty));
-		m_slaveCoils[slave].push_back(new Modbus::RegisterMap(assetName, value, registerNo, scale, offset));
+		m_slaveCoils[slave].push_back(m_lastItem);
 	}
 }
 
@@ -658,15 +677,16 @@ void Modbus::addCoil(const int slave, const string& assetName, const string& val
  */
 void Modbus::addInput(const int slave, const string& assetName, const string& value, const unsigned int registerNo, double scale, double offset)
 {
+	m_lastItem = new Modbus::RegisterMap(assetName, value, registerNo, scale, offset);
 	if (m_slaveInputs.find(slave) != m_slaveInputs.end())
 	{
-		m_slaveInputs[slave].push_back(new Modbus::RegisterMap(assetName, value, registerNo, scale, offset));
+		m_slaveInputs[slave].push_back(m_lastItem);
 	}
 	else
 	{
 		vector<Modbus::RegisterMap *> empty;
 		m_slaveInputs.insert(pair<int, vector<Modbus::RegisterMap *> >(slave, empty));
-		m_slaveInputs[slave].push_back(new Modbus::RegisterMap(assetName, value, registerNo, scale, offset));
+		m_slaveInputs[slave].push_back(m_lastItem);
 	}
 }
 
@@ -679,15 +699,16 @@ void Modbus::addInput(const int slave, const string& assetName, const string& va
  */
 void Modbus::addInputRegister(const int slave, const string& assetName, const string& value, const unsigned int registerNo, double scale, double offset)
 {
+	m_lastItem = new Modbus::RegisterMap(assetName, value, registerNo, scale, offset);
 	if (m_slaveInputRegisters.find(slave) != m_slaveInputRegisters.end())
 	{
-		m_slaveInputRegisters[slave].push_back(new Modbus::RegisterMap(assetName, value, registerNo, scale, offset));
+		m_slaveInputRegisters[slave].push_back(m_lastItem);
 	}
 	else
 	{
 		vector<Modbus::RegisterMap *> empty;
 		m_slaveInputRegisters.insert(pair<int, vector<Modbus::RegisterMap *> >(slave, empty));
-		m_slaveInputRegisters[slave].push_back(new Modbus::RegisterMap(assetName, value, registerNo, scale, offset));
+		m_slaveInputRegisters[slave].push_back(m_lastItem);
 	}
 }
 
@@ -700,15 +721,16 @@ void Modbus::addInputRegister(const int slave, const string& assetName, const st
  */
 void Modbus::addInputRegister(const int slave, const string& assetName, const string& value, const vector<unsigned int> registers, double scale, double offset)
 {
+	m_lastItem = new Modbus::RegisterMap(assetName, value, registers, scale, offset);
 	if (m_slaveInputRegisters.find(slave) != m_slaveInputRegisters.end())
 	{
-		m_slaveInputRegisters[slave].push_back(new Modbus::RegisterMap(assetName, value, registers, scale, offset));
+		m_slaveInputRegisters[slave].push_back(m_lastItem);
 	}
 	else
 	{
 		vector<Modbus::RegisterMap *> empty;
 		m_slaveInputRegisters.insert(pair<int, vector<Modbus::RegisterMap *> >(slave, empty));
-		m_slaveInputRegisters[slave].push_back(new Modbus::RegisterMap(assetName, value, registers, scale, offset));
+		m_slaveInputRegisters[slave].push_back(m_lastItem);
 	}
 }
 
@@ -746,7 +768,6 @@ vector<Reading *>	*values = new vector<Reading *>();
 		uint8_t	coilValue;
 		if (modbus_read_bits(m_modbus, m_coils[i]->m_registerNo, 1, &coilValue) == 1)
 		{
-
 			DatapointValue value((long)coilValue);
 			addModbusValue(values, "", new Datapoint(m_coils[i]->m_name, value));
 		}
@@ -789,8 +810,21 @@ vector<Reading *>	*values = new vector<Reading *>();
 					regValue |= (val << (a * 16));
 				}
 			}
-			DatapointValue value(regValue);
-			addModbusValue(values, "", new Datapoint(m_registers[i]->m_name, value));
+			if (m_registers[i]->m_flags & ITEM_TYPE_FLOAT)
+			{
+				union {
+					uint32_t	ival;
+					float		fval;
+				} data;
+				data.ival = (uint32_t)regValue;
+				DatapointValue value(data.fval);
+				addModbusValue(values, "", new Datapoint(m_registers[i]->m_name, value));
+			}
+			else
+			{
+				DatapointValue value(regValue);
+				addModbusValue(values, "", new Datapoint(m_registers[i]->m_name, value));
+			}
 		}
 		else if ((rc = modbus_read_registers(m_modbus, m_registers[i]->m_registerNo, 1, &regValue)) == 1)
 		{
@@ -822,8 +856,21 @@ vector<Reading *>	*values = new vector<Reading *>();
 					regValue |= (val << (a * 16));
 				}
 			}
-			DatapointValue value(regValue);
-			addModbusValue(values, "", new Datapoint(m_inputRegisters[i]->m_name, value));
+			if (m_inputRegisters[i]->m_flags & ITEM_TYPE_FLOAT)
+			{
+				union {
+					uint32_t	ival;
+					float		fval;
+				} data;
+				data.ival = (uint32_t)regValue;
+				DatapointValue value(data.fval);
+				addModbusValue(values, "", new Datapoint(m_inputRegisters[i]->m_name, value));
+			}
+			else
+			{
+				DatapointValue value(regValue);
+				addModbusValue(values, "", new Datapoint(m_inputRegisters[i]->m_name, value));
+			}
 		}
 		else if ((rc = modbus_read_input_registers(m_modbus, m_inputRegisters[i]->m_registerNo, 1, &regValue)) == 1)
 		{
@@ -895,8 +942,21 @@ vector<Reading *>	*values = new vector<Reading *>();
 						regValue |= (val << (a * 16));
 					}
 				}
-				double finalValue = it->second[i]->m_offset + (regValue * it->second[i]->m_scale);
-				finalValue = it->second[i]->round(finalValue, 16);
+				double finalValue;
+				if (it->second[i]->m_flags & ITEM_TYPE_FLOAT)
+				{
+					union {
+						uint32_t	ival;
+						float		fval;
+					} data;
+					data.ival = (uint32_t)regValue;
+					finalValue = data.fval;
+				}
+				else
+				{
+					finalValue = it->second[i]->m_offset + (regValue * it->second[i]->m_scale);
+					finalValue = it->second[i]->round(finalValue, 16);
+				}
 				DatapointValue value(finalValue);
 				addModbusValue(values, it->second[i]->m_assetName, new Datapoint(it->second[i]->m_name, value));
 			}
@@ -930,8 +990,21 @@ vector<Reading *>	*values = new vector<Reading *>();
 						regValue |= (val << (a * 16));
 					}
 				}
-				double finalValue = it->second[i]->m_offset + (regValue * it->second[i]->m_scale);
-				finalValue = it->second[i]->round(finalValue, 16);
+				double finalValue;
+				if (it->second[i]->m_flags & ITEM_TYPE_FLOAT)
+				{
+					union {
+						uint32_t	ival;
+						float		fval;
+					} data;
+					data.ival = (uint32_t)regValue;
+					finalValue = data.fval;
+				}
+				else
+				{
+					finalValue = it->second[i]->m_offset + (regValue * it->second[i]->m_scale);
+					finalValue = it->second[i]->round(finalValue, 16);
+				}
 				DatapointValue value(finalValue);
 				addModbusValue(values, it->second[i]->m_assetName, new Datapoint(it->second[i]->m_name, value));
 			}
