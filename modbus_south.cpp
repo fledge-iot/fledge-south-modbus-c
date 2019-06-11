@@ -1,7 +1,7 @@
 /*
- * FogLAMP south service plugin
+ * FogLAMP south service modbus plugin
  *
- * Copyright (c) 2018 OSIsoft, LLC
+ * Copyright (c) 2019 OSIsoft, LLC
  *
  * Released under the Apache 2.0 Licence
  *
@@ -31,6 +31,7 @@ using namespace std;
  */
 Modbus::Modbus() : m_modbus(0)
 {
+	Logger::getLogger()->setMinLevel("debug");
 }
 
 /**
@@ -39,26 +40,7 @@ Modbus::Modbus() : m_modbus(0)
 Modbus::~Modbus()
 {
 	lock_guard<mutex> guard(m_configMutex);
-	for (vector<RegisterMap *>::const_iterator it = m_registers.cbegin();
-			it != m_registers.cend(); ++it)
-	{
-		delete *it;
-	}
-	for (vector<RegisterMap *>::const_iterator it = m_coils.cbegin();
-			it != m_coils.cend(); ++it)
-	{
-		delete *it;
-	}
-	for (vector<RegisterMap *>::const_iterator it = m_inputs.cbegin();
-			it != m_inputs.cend(); ++it)
-	{
-		delete *it;
-	}
-	for (vector<RegisterMap *>::const_iterator it = m_inputRegisters.cbegin();
-			it != m_inputRegisters.cend(); ++it)
-	{
-		delete *it;
-	}
+	removeMap();
 	modbus_free(m_modbus);
 }
 
@@ -267,26 +249,7 @@ Logger	*log = Logger::getLogger();
 	/*
 	 * Remove any previous map
 	 */
-	for (vector<RegisterMap *>::const_iterator it = m_registers.cbegin();
-			it != m_registers.cend(); ++it)
-	{
-		delete *it;
-	}
-	for (vector<RegisterMap *>::const_iterator it = m_coils.cbegin();
-			it != m_coils.cend(); ++it)
-	{
-		delete *it;
-	}
-	for (vector<RegisterMap *>::const_iterator it = m_inputs.cbegin();
-			it != m_inputs.cend(); ++it)
-	{
-		delete *it;
-	}
-	for (vector<RegisterMap *>::const_iterator it = m_inputRegisters.cbegin();
-			it != m_inputRegisters.cend(); ++it)
-	{
-		delete *it;
-	}
+	removeMap();
 
 	// Now process the Modbus regster map
 	string map = config->getValue("map");
@@ -298,10 +261,6 @@ Logger	*log = Logger::getLogger();
 		{
 			int errorCount = 0;
 			const rapidjson::Value& values = doc["values"];
-			bool coilRegMapDeleted = false; // clear previous map only once
-			bool slaveInputRegMapDeleted = false; // clear previous map only once
-			bool slaveRegsDeleted = false; // clear previous map only once
-			bool slaveInputRegistersRegMapDeleted = false; // clear previous map only once
 			for (rapidjson::Value::ConstValueIterator itr = values.Begin();
 						itr != values.End(); ++itr)
 			{
@@ -380,16 +339,6 @@ Logger	*log = Logger::getLogger();
 				if (itr->HasMember("coil"))
 				{
 					rCount++;
-					if (!coilRegMapDeleted)
-					{
-						coilRegMapDeleted = true;
-						if (m_slaveCoils.find(slaveID) != m_slaveCoils.end())
-						{	
-							for (auto & regMap : m_slaveCoils[slaveID])
-								delete regMap;
-							m_slaveCoils[slaveID].clear();
-						}
-					}
 					if (! (*itr)["coil"].IsNumber())
 					{
 						log->error("The value of coil in the %s modbus map should be a number", name.c_str());
@@ -398,26 +347,16 @@ Logger	*log = Logger::getLogger();
 					else
 					{
 						int coil = (*itr)["coil"].GetInt();
-						addCoil(slaveID, assetName, name, coil, scale, offset);
+						addToMap(slaveID, new ModbusCoil(slaveID, createRegisterMap(assetName, name, coil, scale, offset)));
 					}
 				}
 				if (itr->HasMember("input"))
 				{
 					rCount++;
-					if (!slaveInputRegMapDeleted)
-					{
-						slaveInputRegMapDeleted = true;
-						if (m_slaveInputs.find(slaveID) != m_slaveInputs.end())
-						{	
-							for (auto & regMap : m_slaveInputs[slaveID])
-								delete regMap;
-							m_slaveInputs[slaveID].clear();
-						}
-					}
 					if ((*itr)["input"].IsInt())
 					{
 						int input = (*itr)["input"].GetInt();
-						addInput(slaveID, assetName, name, input, scale, offset);
+						addToMap(slaveID, new ModbusInputBits(slaveID, createRegisterMap(assetName, name, input, scale, offset)));
 					}
 					else
 					{
@@ -428,20 +367,10 @@ Logger	*log = Logger::getLogger();
 				if (itr->HasMember("register"))
 				{
 					rCount++;
-					if (!slaveRegsDeleted)
-					{
-						slaveRegsDeleted = true;
-						if (m_slaveRegisters.find(slaveID) != m_slaveRegisters.end())
-						{	
-							for (auto & regMap : m_slaveRegisters[slaveID])
-								delete regMap;
-							m_slaveRegisters[slaveID].clear();
-						}
-					}
 					if ((*itr)["register"].IsInt())
 					{
 						int regNo = (*itr)["register"].GetInt();
-						addRegister(slaveID, assetName, name, regNo, scale, offset);
+						addToMap(slaveID, new ModbusRegister(slaveID, createRegisterMap(assetName, name, regNo, scale, offset)));
 					}
 					else if ((*itr)["register"].IsArray())
 					{
@@ -459,7 +388,7 @@ Logger	*log = Logger::getLogger();
 								errorCount++;
 							}
 						}
-						addRegister(slaveID, assetName, name, words, scale, offset);
+						addToMap(slaveID, new ModbusRegister(slaveID, createRegisterMap(assetName, name, words, scale, offset)));
 					}
 					else
 					{
@@ -470,20 +399,10 @@ Logger	*log = Logger::getLogger();
 				if (itr->HasMember("inputRegister"))
 				{
 					rCount++;
-					if (!slaveInputRegistersRegMapDeleted)
-					{
-						slaveInputRegistersRegMapDeleted = true;
-						if (m_slaveInputRegisters.find(slaveID) != m_slaveInputRegisters.end())
-						{	
-							for (auto & regMap : m_slaveInputRegisters[slaveID])
-								delete regMap;
-							m_slaveInputRegisters[slaveID].clear();
-						}
-					}
 					if ((*itr)["inputRegister"].IsInt())
 					{
 						int regNo = (*itr)["inputRegister"].GetInt();
-						addInputRegister(slaveID, assetName, name, regNo, scale, offset);
+						addToMap(slaveID, new ModbusInputRegister(slaveID, createRegisterMap(assetName, name, regNo, scale, offset)));
 					}
 					else if ((*itr)["inputRegister"].IsArray())
 					{
@@ -501,7 +420,7 @@ Logger	*log = Logger::getLogger();
 								errorCount++;
 							}
 						}
-						addInputRegister(slaveID, assetName, name, words, scale, offset);
+						addToMap(slaveID, new ModbusInputRegister(slaveID, createRegisterMap(assetName, name, words, scale, offset)));
 					}
 					else
 					{
@@ -543,46 +462,34 @@ Logger	*log = Logger::getLogger();
 		}
 		if (doc.HasMember("coils") && doc["coils"].IsObject())
 		{
-			// RegisterMap objects inside m_coils have already been freed
-			m_coils.clear();
-			
 			for (rapidjson::Value::ConstMemberIterator itr = doc["coils"].MemberBegin();
 						itr != doc["coils"].MemberEnd(); ++itr)
 			{
-				addCoil(itr->name.GetString(), itr->value.GetUint());
+				addToMap(new ModbusCoil(m_defaultSlave, createRegisterMap(itr->name.GetString(), itr->value.GetUint())));
 			}
 		}
 		if (doc.HasMember("inputs") && doc["inputs"].IsObject())
 		{
-			// RegisterMap objects inside m_inputs have already been freed
-			m_inputs.clear();
-			
 			for (rapidjson::Value::ConstMemberIterator itr = doc["inputs"].MemberBegin();
 						itr != doc["inputs"].MemberEnd(); ++itr)
 			{
-				addInput(itr->name.GetString(), itr->value.GetUint());
+				addToMap(new ModbusInputBits(m_defaultSlave, createRegisterMap(itr->name.GetString(), itr->value.GetUint())));
 			}
 		}
 		if (doc.HasMember("registers") && doc["registers"].IsObject())
 		{
-			// RegisterMap objects inside m_registers have already been freed
-			m_registers.clear();
-			
 			for (rapidjson::Value::ConstMemberIterator itr = doc["registers"].MemberBegin();
 						itr != doc["registers"].MemberEnd(); ++itr)
 			{
-				addRegister(itr->name.GetString(), itr->value.GetUint());
+				addToMap(new ModbusRegister(m_defaultSlave, createRegisterMap(itr->name.GetString(), itr->value.GetUint())));
 			}
 		}
 		if (doc.HasMember("inputRegisters") && doc["inputRegisters"].IsObject())
 		{
-			// RegisterMap objects inside m_inputRegisters have already been freed
-			m_inputRegisters.clear();
-			
 			for (rapidjson::Value::ConstMemberIterator itr = doc["inputRegisters"].MemberBegin();
 						itr != doc["inputRegisters"].MemberEnd(); ++itr)
 			{
-				addInputRegister(itr->name.GetString(), itr->value.GetUint());
+				addToMap(new ModbusInputRegister(m_defaultSlave, createRegisterMap(itr->name.GetString(), itr->value.GetUint())));
 			}
 		}
 	}
@@ -590,6 +497,8 @@ Logger	*log = Logger::getLogger();
 	{
 		log->error("Parse error in modbus map, the map must be a valid JSON object");
 	}
+
+	optimise();
 }
 
 /**
@@ -603,134 +512,125 @@ void Modbus::setSlave(int slave)
 }
 
 /**
- * Add a registers for a particular slave
+ * Create a modbus register map entry for a single of register
  *
- * @param slave		The slave ID we are referencing
- * @param value		The datapoint name for the associated reading
- * @param registerNo	The modbus register number
+ * @param	value		The datapoint names for this value
+ * @param	registerNo	The register number
  */
-void Modbus::addRegister(const int slave, const string& assetName, const string& value, const unsigned int registerNo, double scale, double offset)
+Modbus::RegisterMap *
+Modbus::createRegisterMap(const string& value, const unsigned int registerNo)
 {
-	m_lastItem = new Modbus::RegisterMap(assetName, value, registerNo, scale, offset);
-	if (m_slaveRegisters.find(slave) != m_slaveRegisters.end())
-	{
-		m_slaveRegisters[slave].push_back(m_lastItem);
-	}
-	else
-	{
-		vector<Modbus::RegisterMap *> empty;
-		m_slaveRegisters.insert(pair<int, vector<Modbus::RegisterMap *> >(slave, empty));
-		m_slaveRegisters[slave].push_back(m_lastItem);
-	}
+	m_lastItem = new Modbus::RegisterMap(value, registerNo, 1.0, 0.0);
+	return m_lastItem;
 }
 
 /**
- * Add a registers for a particular slave
+ * Create a modbus register map entry for a single of register
  *
- * @param slave		The slave ID we are referencing
- * @param value		The datapoint name for the associated reading
- * @param registers	The vecror of modbus register numbers
+ * @param	value		The datapoint names for this value
+ * @param	registerNo	The register number
+ * @param	scale		A scale factor to apply to this value
+ * @param	offset		An offset to add to this value
  */
-void Modbus::addRegister(const int slave, const string& assetName, const string& value, const vector<unsigned int> registers, double scale, double offset)
+Modbus::RegisterMap *
+Modbus::createRegisterMap(const string& value, const unsigned int registerNo, double scale, double offset)
+{
+	m_lastItem = new Modbus::RegisterMap(value, registerNo, scale, offset);
+	return m_lastItem;
+}
+
+
+/**
+ * Create a modbus register map entry for a single of register
+ *
+ * @param	assetName	The asset name to assign this entry
+ * @param	value		The datapoint names for this value
+ * @param	registerNo	The register number
+ * @param	scale		A scale factor to apply to this value
+ * @param	offset		An offset to add to this value
+ */
+Modbus::RegisterMap *
+Modbus::createRegisterMap(const string& assetName, const string& value, const unsigned int registerNo, double scale, double offset)
+{
+	m_lastItem = new Modbus::RegisterMap(assetName, value, registerNo, scale, offset);
+	return m_lastItem;
+}
+
+/**
+ * Create a modbus register map entry for a set of registers
+ *
+ * @param	assetName	The asset name to assign this entry
+ * @param	value		The datapoint names for this value
+ * @param	registers	The set of registers to combine for this value
+ * @param	scale		A scale factor to apply to this value
+ * @param	offset		An offset to add to this value
+ */
+Modbus::RegisterMap *
+Modbus::createRegisterMap(const string& assetName, const string& value, const std::vector<unsigned int> registers, double scale, double offset)
 {
 	m_lastItem = new Modbus::RegisterMap(assetName, value, registers, scale, offset);
-	if (m_slaveRegisters.find(slave) != m_slaveRegisters.end())
+	return m_lastItem;
+}
+
+/**
+ * Add a entity to the modbus map
+ *
+ * @param entity	The modbus register/coil entity and the data associated with it
+ */
+void
+Modbus::addToMap(ModbusEntity *entity)
+{
+	addToMap(m_defaultSlave, entity);
+}
+
+/**
+ * Add a entity to the modbus map
+ *
+ * @param slave		The modbus slave ID
+ * @param entity	The modbus register/coil entity and the data associated with it
+ */
+void
+Modbus::addToMap(int slave, ModbusEntity *entity)
+{
+ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
+RegisterMap		*map = entity->getMap();
+
+	if (map->m_isVector)
 	{
-		m_slaveRegisters[slave].push_back(m_lastItem);
+		for (int i = 0; i < map->m_registers.size(); i++)
+		{
+			manager->registerItem(slave, entity->getSource(), map->m_registers[i]);
+		}
 	}
 	else
 	{
-		vector<Modbus::RegisterMap *> empty;
-		m_slaveRegisters.insert(pair<int, vector<Modbus::RegisterMap *> >(slave, empty));
-		m_slaveRegisters[slave].push_back(m_lastItem);
+		manager->registerItem(slave, entity->getSource(), map->m_registerNo);
+	}
+	if (m_map.find(slave) != m_map.end())
+	{
+		m_map[slave].push_back(entity);
+	}
+	else
+	{
+		vector<Modbus::ModbusEntity *> empty;
+		m_map.insert(pair<int, vector<Modbus::ModbusEntity *> >(slave, empty));
+		m_map[slave].push_back(entity);
 	}
 }
 
 /**
- * Add a coil for a particular slave
- *
- * @param slave		The slave ID we are referencing
- * @param value		The datapoint name for the associated reading
- * @param registerNo	The modbus register number
+ * Clear down the modbus map and remove all of the objects related to the map
  */
-void Modbus::addCoil(const int slave, const string& assetName, const string& value, const unsigned int registerNo, double scale, double offset)
+void
+Modbus::removeMap()
 {
-	m_lastItem = new Modbus::RegisterMap(assetName, value, registerNo, scale, offset);
-	if (m_slaveCoils.find(slave) != m_slaveCoils.end())
+	for (auto it = m_map.begin(); it != m_map.end(); it++)
 	{
-		m_slaveCoils[slave].push_back(m_lastItem);
-	}
-	else
-	{
-		vector<Modbus::RegisterMap *> empty;
-		m_slaveCoils.insert(pair<int, vector<Modbus::RegisterMap *> >(slave, empty));
-		m_slaveCoils[slave].push_back(m_lastItem);
-	}
-}
-
-/**
- * Add an input for a particular slave
- *
- * @param slave		The slave ID we are referencing
- * @param value		The datapoint name for the associated reading
- * @param registerNo	The modbus register number
- */
-void Modbus::addInput(const int slave, const string& assetName, const string& value, const unsigned int registerNo, double scale, double offset)
-{
-	m_lastItem = new Modbus::RegisterMap(assetName, value, registerNo, scale, offset);
-	if (m_slaveInputs.find(slave) != m_slaveInputs.end())
-	{
-		m_slaveInputs[slave].push_back(m_lastItem);
-	}
-	else
-	{
-		vector<Modbus::RegisterMap *> empty;
-		m_slaveInputs.insert(pair<int, vector<Modbus::RegisterMap *> >(slave, empty));
-		m_slaveInputs[slave].push_back(m_lastItem);
-	}
-}
-
-/**
- * Add an input registers for a particular slave
- *
- * @param slave		The slave ID we are referencing
- * @param value		The datapoint name for the associated reading
- * @param registerNo	The modbus register number
- */
-void Modbus::addInputRegister(const int slave, const string& assetName, const string& value, const unsigned int registerNo, double scale, double offset)
-{
-	m_lastItem = new Modbus::RegisterMap(assetName, value, registerNo, scale, offset);
-	if (m_slaveInputRegisters.find(slave) != m_slaveInputRegisters.end())
-	{
-		m_slaveInputRegisters[slave].push_back(m_lastItem);
-	}
-	else
-	{
-		vector<Modbus::RegisterMap *> empty;
-		m_slaveInputRegisters.insert(pair<int, vector<Modbus::RegisterMap *> >(slave, empty));
-		m_slaveInputRegisters[slave].push_back(m_lastItem);
-	}
-}
-
-/**
- * Add an input registers for a particular slave
- *
- * @param slave		The slave ID we are referencing
- * @param value		The datapoint name for the associated reading
- * @param registers	The vector of modbus register numbers
- */
-void Modbus::addInputRegister(const int slave, const string& assetName, const string& value, const vector<unsigned int> registers, double scale, double offset)
-{
-	m_lastItem = new Modbus::RegisterMap(assetName, value, registers, scale, offset);
-	if (m_slaveInputRegisters.find(slave) != m_slaveInputRegisters.end())
-	{
-		m_slaveInputRegisters[slave].push_back(m_lastItem);
-	}
-	else
-	{
-		vector<Modbus::RegisterMap *> empty;
-		m_slaveInputRegisters.insert(pair<int, vector<Modbus::RegisterMap *> >(slave, empty));
-		m_slaveInputRegisters[slave].push_back(m_lastItem);
+		for (int i = 0; i < it->second.size(); i++)
+		{
+			delete it->second[i];
+		}
+		it->second.clear();
 	}
 }
 
@@ -741,6 +641,7 @@ void Modbus::addInputRegister(const int slave, const string& assetName, const st
 vector<Reading *>	*Modbus::takeReading()
 {
 vector<Reading *>	*values = new vector<Reading *>();
+ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 
 	lock_guard<mutex> guard(m_configMutex);
 	if (!m_modbus)
@@ -759,268 +660,32 @@ vector<Reading *>	*values = new vector<Reading *>();
 		m_connected = true;
 	}
 
-	/*
-	 * First do the readings from the default slave. This is really here to support backward compatibility.
-	 */
-	setSlave(m_defaultSlave);
-	for (int i = 0; i < m_coils.size(); i++)
-	{
-		uint8_t	coilValue;
-		if (modbus_read_bits(m_modbus, m_coils[i]->m_registerNo, 1, &coilValue) == 1)
-		{
-			DatapointValue value((long)coilValue);
-			addModbusValue(values, "", new Datapoint(m_coils[i]->m_name, value));
-		}
-		else if (errno == EPIPE)
-		{
-			m_connected = false;
-		}
-	}
-	for (int i = 0; i < m_inputs.size(); i++)
-	{
-		uint8_t	inputValue;
-		int		rc;
-		if (modbus_read_input_bits(m_modbus, m_inputs[i]->m_registerNo, 1, &inputValue) == 1)
-		{
-			DatapointValue value((long)inputValue);
-			addModbusValue(values, "", new Datapoint(m_inputs[i]->m_name, value));
-		}
-		else if (rc == -1)
-		{
-			Logger::getLogger()->error("Modbus read input bits %d, %s", m_inputs[i]->m_registerNo, modbus_strerror(errno));
-		}
-		else if (errno == EPIPE)
-		{
-			m_connected = false;
-		}
-	}
-	for (int i = 0; i < m_registers.size(); i++)
-	{
-		uint16_t	regValue;
-		int		rc;
-		errno = 0;
-		if (m_registers[i]->m_isVector)
-		{
-			long regValue = 0;
-			for (int a = 0; a < m_registers[i]->m_registers.size(); a++)
-			{
-				uint16_t val;
-				if ((rc = modbus_read_registers(m_modbus, m_registers[i]->m_registers[a], 1, &val)) == 1)
-				{
-					regValue |= (val << (a * 16));
-				}
-			}
-			if (m_registers[i]->m_flags & ITEM_TYPE_FLOAT)
-			{
-				union {
-					uint32_t	ival;
-					float		fval;
-				} data;
-				data.ival = (uint32_t)regValue;
-				DatapointValue value(data.fval);
-				addModbusValue(values, "", new Datapoint(m_registers[i]->m_name, value));
-			}
-			else
-			{
-				DatapointValue value(regValue);
-				addModbusValue(values, "", new Datapoint(m_registers[i]->m_name, value));
-			}
-		}
-		else if ((rc = modbus_read_registers(m_modbus, m_registers[i]->m_registerNo, 1, &regValue)) == 1)
-		{
-			DatapointValue value((long)regValue);
-			addModbusValue(values, "", new Datapoint(m_registers[i]->m_name, value));
-		}
-		else if (rc == -1)
-		{
-			Logger::getLogger()->error("Modbus read register %d, %s", m_registers[i]->m_registerNo, modbus_strerror(errno));
-		}
-		if (errno == EPIPE)
-		{
-			m_connected = false;
-		}
-	}
-	for (int i = 0; i < m_inputRegisters.size(); i++)
-	{
-		uint16_t	regValue;
-		int		rc;
-		errno = 0;
-		if (m_inputRegisters[i]->m_isVector)
-		{
-			long regValue = 0;
-			for (int a = 0; a < m_inputRegisters[i]->m_registers.size(); a++)
-			{
-				uint16_t val;
-				if ((rc = modbus_read_input_registers(m_modbus, m_inputRegisters[i]->m_registers[a], 1, &val)) == 1)
-				{
-					regValue |= (val << (a * 16));
-				}
-			}
-			if (m_inputRegisters[i]->m_flags & ITEM_TYPE_FLOAT)
-			{
-				union {
-					uint32_t	ival;
-					float		fval;
-				} data;
-				data.ival = (uint32_t)regValue;
-				DatapointValue value(data.fval);
-				addModbusValue(values, "", new Datapoint(m_inputRegisters[i]->m_name, value));
-			}
-			else
-			{
-				DatapointValue value(regValue);
-				addModbusValue(values, "", new Datapoint(m_inputRegisters[i]->m_name, value));
-			}
-		}
-		else if ((rc = modbus_read_input_registers(m_modbus, m_inputRegisters[i]->m_registerNo, 1, &regValue)) == 1)
-		{
-			DatapointValue value((long)regValue);
-			addModbusValue(values, "", new Datapoint(m_inputRegisters[i]->m_name, value));
-		}
-		else if (rc == -1)
-		{
-			Logger::getLogger()->error("Modbus read register %d, %s", m_inputRegisters[i]->m_registerNo, modbus_strerror(errno));
-		}
-		if (errno == EPIPE)
-		{
-			m_connected = false;
-		}
-	}
-	/*
-	 * Now process items defined using the newer flexible configuration mechanism
-	 */
-	for (auto it = m_slaveCoils.cbegin(); it != m_slaveCoils.cend(); it++)
+	manager->populateCaches(m_modbus);
+
+	for (auto it = m_map.cbegin(); it != m_map.cend(); it++)
 	{
 		setSlave(it->first);
 		for (int i = 0; i < it->second.size(); i++)
 		{
-			uint8_t	coilValue;
-			if (modbus_read_bits(m_modbus, it->second[i]->m_registerNo, 1, &coilValue) == 1)
+			Datapoint *dp = it->second[i]->read(m_modbus);
+			if (dp)
 			{
-				DatapointValue value((long)coilValue);
-				addModbusValue(values, it->second[i]->m_assetName, new Datapoint(it->second[i]->m_name, value));
+				addModbusValue(values, it->second[i]->getAssetName(), dp);
 			}
 			else if (errno == EPIPE)
 			{
 				m_connected = false;
+				if (modbus_connect(m_modbus) == -1)
+				{
+					Logger::getLogger()->error("Failed to connect to Modbus device %s: %s",
+						(m_tcp ? m_address.c_str() : m_device.c_str()), modbus_strerror(errno));
+					return values;
+				}
+				m_connected = true;
 			}
 		}
 	}
-	for (auto it = m_slaveInputs.cbegin(); it != m_slaveInputs.cend(); it++)
-	{
-		setSlave(it->first);
-		for (int i = 0; i < it->second.size(); i++)
-		{
-			uint8_t	inputValue;
-			if (modbus_read_input_bits(m_modbus, it->second[i]->m_registerNo, 1, &inputValue) == 1)
-			{
-				double finalValue = it->second[i]->m_offset + (inputValue * it->second[i]->m_scale);
-				finalValue = it->second[i]->round(finalValue, 8);
-				DatapointValue value(finalValue);
-				addModbusValue(values, it->second[i]->m_assetName, new Datapoint(it->second[i]->m_name, value));
-			}
-			else if (errno == EPIPE)
-			{
-				m_connected = false;
-			}
-		}
-	}
-	for (auto it = m_slaveRegisters.cbegin(); it != m_slaveRegisters.cend(); it++)
-	{
-		setSlave(it->first);
-		for (int i = 0; i < it->second.size(); i++)
-		{
-			uint16_t	registerValue;
-			if (it->second[i]->m_isVector)
-			{
-				unsigned int regValue = 0;
-				for (int a = 0; a < it->second[i]->m_registers.size(); a++)
-				{
-					uint16_t val;
-					if (modbus_read_registers(m_modbus, it->second[i]->m_registers[a], 1, &val) == 1)
-					{
-						regValue |= (val << (a * 16));
-					}
-				}
-				double finalValue;
-				if (it->second[i]->m_flags & ITEM_TYPE_FLOAT)
-				{
-					union {
-						uint32_t	ival;
-						float		fval;
-					} data;
-					data.ival = (uint32_t)regValue;
-					finalValue = data.fval;
-				}
-				else
-				{
-					finalValue = it->second[i]->m_offset + (regValue * it->second[i]->m_scale);
-					finalValue = it->second[i]->round(finalValue, 16);
-				}
-				DatapointValue value(finalValue);
-				addModbusValue(values, it->second[i]->m_assetName, new Datapoint(it->second[i]->m_name, value));
-			}
-			else if (modbus_read_registers(m_modbus, it->second[i]->m_registerNo, 1, &registerValue) == 1)
-			{
-				double finalValue = it->second[i]->m_offset + (registerValue * it->second[i]->m_scale);
-				finalValue = it->second[i]->round(finalValue, 16);
-				DatapointValue value(finalValue);
-				addModbusValue(values, it->second[i]->m_assetName, new Datapoint(it->second[i]->m_name, value));
-			}
-			else if (errno == EPIPE)
-			{
-				m_connected = false;
-			}
-		}
-	}
-	for (auto it = m_slaveInputRegisters.cbegin(); it != m_slaveInputRegisters.cend(); it++)
-	{
-		setSlave(it->first);
-		for (int i = 0; i < it->second.size(); i++)
-		{
-			uint16_t	registerValue;
-			if (it->second[i]->m_isVector)
-			{
-				unsigned int regValue = 0;
-				for (int a = 0; a < it->second[i]->m_registers.size(); a++)
-				{
-					uint16_t val;
-					if (modbus_read_input_registers(m_modbus, it->second[i]->m_registers[a], 1, &val) == 1)
-					{
-						regValue |= (val << (a * 16));
-					}
-				}
-				double finalValue;
-				if (it->second[i]->m_flags & ITEM_TYPE_FLOAT)
-				{
-					union {
-						uint32_t	ival;
-						float		fval;
-					} data;
-					data.ival = (uint32_t)regValue;
-					finalValue = data.fval;
-				}
-				else
-				{
-					finalValue = it->second[i]->m_offset + (regValue * it->second[i]->m_scale);
-					finalValue = it->second[i]->round(finalValue, 16);
-				}
-				DatapointValue value(finalValue);
-				addModbusValue(values, it->second[i]->m_assetName, new Datapoint(it->second[i]->m_name, value));
-			}
-			else if (modbus_read_input_registers(m_modbus, it->second[i]->m_registerNo, 1, &registerValue) == 1)
-			{
-				double finalValue = it->second[i]->m_offset + (registerValue * it->second[i]->m_scale);
-				finalValue = it->second[i]->round(finalValue, 16);
-				DatapointValue value(finalValue);
-				addModbusValue(values, it->second[i]->m_assetName, new Datapoint(it->second[i]->m_name, value));
-			}
-			else if (errno == EPIPE)
-			{
-				m_connected = false;
-			}
-		}
-	}
+
 	return values;
 }
 
@@ -1078,4 +743,241 @@ double Modbus::RegisterMap::round(double value, int bits)
 	int divisor = pow(10, (int)(dp + 0.5));
 
 	return (double)((long)(value * divisor + 0.5)) / divisor;
+}
+
+/**
+ * Optimise the modbus interactions so we fetch a large block of registers
+ * or holding registers in a single interaction rather than one at a time.
+ *
+ * We only apply this optimisation to maos that use the latest mapping
+ * specification.
+ */
+void Modbus::optimise()
+{
+	Logger::getLogger()->info("Creating Modbus caches");
+	ModbusCacheManager::getModbusCacheManager()->createCaches();
+}
+
+/**
+ * Constructor for the ModbusEntity base class
+ *
+ * @param slave		The modbus slave
+ * @param map		The Modbus mao entry for this entity
+ */
+Modbus::ModbusEntity::ModbusEntity(int slave, RegisterMap *map) : m_slave(slave), m_map(map)
+{
+}
+
+/**
+ * Read a modbus entity
+ *
+ * @param modbus	The modbus connection
+ * @return	Datapoint * the value read as a datapoint
+ */
+Datapoint *
+Modbus::ModbusEntity::read(modbus_t *modbus)
+{
+	DatapointValue *dpv = readItem(modbus);
+	Datapoint *dp = new Datapoint(m_map->m_name, *dpv);
+	delete dpv;
+	return dp;
+}
+
+/**
+ * Read a modbus coil
+ *
+ * @param modbus	The modbus connection
+ * @return	DatapointValue * the value read as a datapoint value
+ */
+DatapointValue *
+Modbus::ModbusCoil::readItem(modbus_t *modbus)
+{
+DatapointValue		*value = NULL;
+uint8_t			coilValue;
+int			rc;
+ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
+
+	errno = 0;
+	if (manager->isCached(m_slave, MODBUS_COIL, m_map->m_registerNo))
+	{
+		value = new DatapointValue((long)manager->cachedValue(m_slave, MODBUS_COIL, m_map->m_registerNo));
+	}
+	else if (modbus_read_bits(modbus, m_map->m_registerNo, 1, &coilValue) == 1)
+	{
+		value = new DatapointValue((long)coilValue);
+	}
+	else if (rc == -1)
+	{
+		Logger::getLogger()->error("Modbus read coil %d, %s", m_map->m_registerNo, modbus_strerror(errno));
+	}
+	return value;
+}
+
+/**
+ * Read a modbus input bits
+ *
+ * @param modbus	The modbus connection
+ * @return	DatapointValue * the value read as a datapoint value
+ */
+DatapointValue *
+Modbus::ModbusInputBits::readItem(modbus_t *modbus)
+{
+DatapointValue		*value = NULL;
+uint8_t			coilValue;
+int			rc;
+ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
+
+	errno = 0;
+	if (manager->isCached(m_slave, MODBUS_INPUT, m_map->m_registerNo))
+	{
+		value = new DatapointValue((long)manager->cachedValue(m_slave, MODBUS_INPUT, m_map->m_registerNo));
+	}
+	else if (modbus_read_input_bits(modbus, m_map->m_registerNo, 1, &coilValue) == 1)
+	{
+		value = new DatapointValue((long)coilValue);
+	}
+	else if (rc == -1)
+	{
+		Logger::getLogger()->error("Modbus read input bit %d, %s", m_map->m_registerNo, modbus_strerror(errno));
+	}
+	return value;
+}
+
+
+/**
+ * Read a modbus register
+ *
+ * @param modbus	The modbus connection
+ * @return	DatapointValue * the value read as a datapoint value
+ */
+DatapointValue *
+Modbus::ModbusRegister::readItem(modbus_t *modbus)
+{
+DatapointValue		*value = NULL;
+uint16_t		regValue;
+int			rc;
+ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
+
+
+	errno = 0;
+	if (m_map->m_isVector)
+	{
+		long regValue = 0;
+		for (int a = 0; a < m_map->m_registers.size(); a++)
+		{
+			uint16_t val;
+			if (manager->isCached(m_slave, MODBUS_REGISTER, m_map->m_registers[a]))
+			{
+				val = manager->cachedValue(m_slave, MODBUS_REGISTER, m_map->m_registers[a]);
+				regValue |= (val << (a * 16));
+			}
+			else if ((rc = modbus_read_registers(modbus, m_map->m_registers[a], 1, &val)) == 1)
+			{
+				regValue |= (val << (a * 16));
+			}
+		}
+		if (m_map->m_flags & ITEM_TYPE_FLOAT)
+		{
+			union {
+				uint32_t	ival;
+				float		fval;
+			} data;
+			data.ival = (uint32_t)regValue;
+			double finalValue = m_map->m_offset + (data.fval * m_map->m_scale);
+			value = new DatapointValue(finalValue);
+		}
+		else
+		{
+			double finalValue = m_map->m_offset + (regValue * m_map->m_scale);
+			finalValue = m_map->round(finalValue, 16);
+			value = new DatapointValue(finalValue);
+		}
+	}
+	if (manager->isCached(m_slave, MODBUS_REGISTER, m_map->m_registerNo))
+	{
+		regValue = manager->cachedValue(m_slave, MODBUS_REGISTER, m_map->m_registerNo);
+		double finalValue = m_map->m_offset + (regValue * m_map->m_scale);
+		finalValue = m_map->round(finalValue, 8);
+		value = new DatapointValue(finalValue);
+	}
+	else if ((rc = modbus_read_registers(modbus, m_map->m_registerNo, 1, &regValue)) == 1)
+	{
+		double finalValue = m_map->m_offset + (regValue * m_map->m_scale);
+		finalValue = m_map->round(finalValue, 8);
+		value = new DatapointValue(finalValue);
+	}
+	else if (rc == -1)
+	{
+		Logger::getLogger()->error("Modbus read register %d, %s", m_map->m_registerNo, modbus_strerror(errno));
+	}
+	return value;
+}
+
+
+/**
+ * Read a modbus input register
+ *
+ * @param modbus	The modbus connection
+ * @return	DatapointValue * the value read as a datapoint value
+ */
+DatapointValue *
+Modbus::ModbusInputRegister::readItem(modbus_t *modbus)
+{
+DatapointValue		*value = NULL;
+uint16_t		regValue;
+int			rc;
+ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
+
+	errno = 0;
+	if (m_map->m_isVector)
+	{
+		long regValue = 0;
+		for (int a = 0; a < m_map->m_registers.size(); a++)
+		{
+			uint16_t val;
+			if (manager->isCached(m_slave, MODBUS_INPUT_REGISTER, m_map->m_registers[a]))
+			{
+				val = manager->cachedValue(m_slave, MODBUS_INPUT_REGISTER, m_map->m_registers[a]);
+				regValue |= (val << (a * 16));
+			}
+			else if ((rc = modbus_read_input_registers(modbus, m_map->m_registers[a], 1, &val)) == 1)
+			{
+				regValue |= (val << (a * 16));
+			}
+		}
+		if (m_map->m_flags & ITEM_TYPE_FLOAT)
+		{
+			union {
+				uint32_t	ival;
+				float		fval;
+			} data;
+			data.ival = (uint32_t)regValue;
+			double finalValue = m_map->m_offset + (data.fval * m_map->m_scale);
+			value = new DatapointValue(finalValue);
+		}
+		else
+		{
+			double finalValue = m_map->m_offset + (regValue * m_map->m_scale);
+			finalValue = m_map->round(finalValue, 16);
+			value = new DatapointValue(finalValue);
+		}
+	}
+	else if (manager->isCached(m_slave, MODBUS_INPUT_REGISTER, m_map->m_registerNo))
+	{
+		regValue = manager->cachedValue(m_slave, MODBUS_INPUT_REGISTER, m_map->m_registerNo);
+		double finalValue = m_map->m_offset + (regValue * m_map->m_scale);
+		finalValue = m_map->round(finalValue, 8);
+		value = new DatapointValue(finalValue);
+	}
+	else if ((rc = modbus_read_input_registers(modbus, m_map->m_registerNo, 1, &regValue)) == 1)
+	{
+		double finalValue = m_map->m_offset + (regValue * m_map->m_scale);
+		finalValue = m_map->round(finalValue, 8);
+		value = new DatapointValue(finalValue);
+	}
+	else if (rc == -1)
+	{
+		Logger::getLogger()->error("Modbus read input register %d, %s", m_map->m_registerNo, modbus_strerror(errno));
+	}
+	return value;
 }
