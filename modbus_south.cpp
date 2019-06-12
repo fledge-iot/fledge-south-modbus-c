@@ -778,6 +778,10 @@ Datapoint *
 Modbus::ModbusEntity::read(modbus_t *modbus)
 {
 	DatapointValue *dpv = readItem(modbus);
+	if (!dpv)
+	{
+		return NULL;
+	}
 	Datapoint *dp = new Datapoint(m_map->m_name, *dpv);
 	delete dpv;
 	return dp;
