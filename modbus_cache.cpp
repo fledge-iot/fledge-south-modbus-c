@@ -262,7 +262,7 @@ ModbusCacheManager::SlaveCache::RegisterRanges::~RegisterRanges()
 }
 
 /**
- * Add a register to the range of resisters.
+ * Add a register to the range of registers.
  *
  * @param registerNo	The regiater number to extend the cache with
  */
@@ -277,7 +277,6 @@ bool done = false;
 		int last = it->second;
 		m_ranges.erase(it);
 		done = true;
-		Logger::getLogger()->info("Extend range at start %d, %d", registerNo, last);
 		m_ranges.insert(pair<int, int>(registerNo, last));
 	}
 	else
@@ -288,7 +287,6 @@ bool done = false;
 			if (it->second == registerNo - 1)
 			{
 				it->second = registerNo;
-				Logger::getLogger()->info("Extend range at end %d, %d", it->first, it->second);
 				done = true;
 				break;
 			}
@@ -311,7 +309,6 @@ bool done = false;
 				if (it1->second + 1 == it2->first)
 				{
 					it1->second = it2->second;
-		Logger::getLogger()->info("Combined range at end %d, %d", it1->first, it1->second);
 					m_ranges.erase(it2);
 					combined = true;
 					break;
@@ -323,7 +320,6 @@ bool done = false;
 	{
 		// Simply add a new range
 		m_ranges.insert(pair<int, int>(registerNo, registerNo));
-		Logger::getLogger()->info("Add range at end %d, %d", registerNo, registerNo);
 	}
 }
 

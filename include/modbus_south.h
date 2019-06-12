@@ -218,8 +218,8 @@ class Modbus {
  * where an item is a slave, source and register num,ber tripple. The object structure
  * is built to represent those ranges.
  *
- * Once reading of the modbus mao is complete the createCaches method of the manager is
- * called to create the actual caches themselves. This will recurse down t the register
+ * Once reading of the modbus map is complete the createCaches method of the manager is
+ * called to create the actual caches themselves. This will recurse down to the register
  * ranges which will call the manager addCache method to add the physical cache.
  *
  * During operation of the modbus plugin the populateCaches methid is called for each poll
