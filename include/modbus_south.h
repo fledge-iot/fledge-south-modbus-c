@@ -22,6 +22,7 @@
 #define CACHE_THRESHOLD			5	// The number of contiguous registers we need before we create a cache
 
 #define MAX_MODBUS_BLOCK		100 	// Max number of registers to read in a single call
+#define ERR_THRESHOLD			20	// Threshold of error coutn before closing connection
 
 typedef enum { MODBUS_COIL, MODBUS_INPUT, MODBUS_REGISTER, MODBUS_INPUT_REGISTER } ModbusSource;
 
@@ -195,6 +196,7 @@ class Modbus {
 		int				m_defaultSlave;
 		std::mutex			m_configMutex;
 		RegisterMap			*m_lastItem;
+		int				m_errcount;
 
 
 };

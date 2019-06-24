@@ -29,7 +29,8 @@ using namespace std;
  * The actual modbus connection can only be created once we have
  * configuration data.
  */
-Modbus::Modbus() : m_modbus(0)
+Modbus::Modbus() : m_modbus(0), m_tcp(false), m_port(0), m_device(""),
+	m_baud(0), m_bits(0), m_stopBits(0), m_parity('E'), m_errcount(0)
 {
 	Logger::getLogger()->setMinLevel("debug");
 }
@@ -670,6 +671,7 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 			Datapoint *dp = it->second[i]->read(m_modbus);
 			if (dp)
 			{
+				m_errcount = 0;
 				addModbusValue(values, it->second[i]->getAssetName(), dp);
 			}
 			else if (errno == EPIPE)
@@ -682,6 +684,36 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 					return values;
 				}
 				m_connected = true;
+				m_errcount = 0;
+			}
+			else if (errno == EINVAL)
+			{
+				modbus_close(m_modbus);
+				m_connected = false;
+				if (modbus_connect(m_modbus) == -1)
+				{
+					Logger::getLogger()->error("Failed to connect to Modbus device %s: %s",
+						(m_tcp ? m_address.c_str() : m_device.c_str()), modbus_strerror(errno));
+					return values;
+				}
+				m_connected = true;
+				m_errcount = 0;
+			}
+			else
+				m_errcount++;
+			if (m_errcount > ERR_THRESHOLD)
+			{
+				Logger::getLogger()->warn("Modbus excessive failures, closing and re-establ;ishing connection");
+				modbus_close(m_modbus);
+				m_connected = false;
+				if (modbus_connect(m_modbus) == -1)
+				{
+					Logger::getLogger()->error("Failed to connect to Modbus device %s: %s",
+						(m_tcp ? m_address.c_str() : m_device.c_str()), modbus_strerror(errno));
+					return values;
+				}
+				m_connected = true;
+				m_errcount = 0;
 			}
 		}
 	}
@@ -690,7 +722,7 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 }
 
 /**
- * Add a new datapoint and potentialluy new reading to the array of readings we
+ * Add a new datapoint and potentially new reading to the array of readings we
  * will return.
  *
  * @param	readings	Vector of readings to update
@@ -782,8 +814,9 @@ Modbus::ModbusEntity::read(modbus_t *modbus)
 	{
 		return NULL;
 	}
-	Datapoint *dp = new Datapoint(m_map->m_name, *dpv);
+	DatapointValue dpv2 = *dpv;
 	delete dpv;
+	Datapoint *dp = new Datapoint(m_map->m_name, dpv2);
 	return dp;
 }
 
