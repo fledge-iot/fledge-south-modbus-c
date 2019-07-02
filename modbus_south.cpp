@@ -676,6 +676,7 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 			}
 			else if (errno == EPIPE)
 			{
+				Logger::getLogger()->warn("Modbus connection lost, re-establishing the connection");
 				m_connected = false;
 				if (modbus_connect(m_modbus) == -1)
 				{
@@ -689,6 +690,7 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 			else if (errno == EINVAL)
 			{
 				modbus_close(m_modbus);
+				Logger::getLogger()->warn("Modbus invalid error, closing and re-establishing the connection");
 				m_connected = false;
 				if (modbus_connect(m_modbus) == -1)
 				{
@@ -700,10 +702,13 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 				m_errcount = 0;
 			}
 			else
+			{
+				Logger::getLogger()->warn("Failed with errno %d, errorcount %d", errno, m_errcount);
 				m_errcount++;
+			}
 			if (m_errcount > ERR_THRESHOLD)
 			{
-				Logger::getLogger()->warn("Modbus excessive failures, closing and re-establ;ishing connection");
+				Logger::getLogger()->warn("Modbus excessive failures, closing and re-establishing the connection");
 				modbus_close(m_modbus);
 				m_connected = false;
 				if (modbus_connect(m_modbus) == -1)
