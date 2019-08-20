@@ -13,6 +13,18 @@ given `requirements.sh <requirements.sh>`_ or the following steps:
 
   $ sudo apt install -y libmodbus-dev
 
+On RedHat or CentOS platforms the modbus are help in the epel
+repository. This must be added before the packages are installed
+
+.. code-block:: console
+
+  $ sudo yum install -y epel-release
+  $ sudo yum install -y libmodbus
+  $ sudo yum install -y libmodbus-devel
+
+
+Alternately simply run the script requirements.sh in this directory.
+
 Build
 -----
 
