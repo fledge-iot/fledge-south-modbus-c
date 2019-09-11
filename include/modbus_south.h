@@ -1,7 +1,7 @@
 #ifndef _MODBUS_H
 #define _MODBUS_H
 /*
- * FogLAMP south service plugin
+ * Fledge south service plugin
  *
  * Copyright (c) 2018 OSIsoft, LLC
  *

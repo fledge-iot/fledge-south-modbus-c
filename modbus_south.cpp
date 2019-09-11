@@ -1,5 +1,5 @@
 /*
- * FogLAMP south service modbus plugin
+ * Fledge south service modbus plugin
  *
  * Copyright (c) 2019 OSIsoft, LLC
  *

@@ -13,7 +13,7 @@ The modbus configuration can be broken into two distinct sections;
 - The physical connection configuration
 - The mapping modbus registers and coils into asset data
 
-As is common with most south plugins in FogLAMP there is an option to
+As is common with most south plugins in Fledge there is an option to
 set the name of the asset into which modbus data will be ingested. This
 is the ``asset`` configuration item. The default for this asset name is ``modbus``.
 
@@ -88,7 +88,7 @@ map
   The JSON object the defines the map of the modbus coils and registers
   to the asset data that is created. It consists of a JSON document with
   a single property, ``values`` which is an array of JSON objects, each
-  of which becomes an asset value in the data ingested into FogLAMP. The
+  of which becomes an asset value in the data ingested into Fledge. The
   following section will go into more detail with regards to this item.
 
 Modbus map JSON object
@@ -121,7 +121,7 @@ The ``values`` contains a set of objects, each of which has the following
 properties that may be applied to it.
 
 name
-  The name of the data value to add to the asset in FogLAMP. Each asset
+  The name of the data value to add to the asset in Fledge. Each asset
   may have several data points within it, this name is the name associated
   to that data point.
 
