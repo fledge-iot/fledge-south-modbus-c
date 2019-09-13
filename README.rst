@@ -13,6 +13,18 @@ given `requirements.sh <requirements.sh>`_ or the following steps:
 
   $ sudo apt install -y libmodbus-dev
 
+On RedHat or CentOS platforms the modbus are help in the epel
+repository. This must be added before the packages are installed
+
+.. code-block:: console
+
+  $ sudo yum install -y epel-release
+  $ sudo yum install -y libmodbus
+  $ sudo yum install -y libmodbus-devel
+
+
+Alternately simply run the script requirements.sh in this directory.
+
 Build
 -----
 
@@ -74,52 +86,3 @@ Examples:
   $ cmake -DFOGLAMP_INSTALL=/home/source/develop/FogLAMP
 
   $ cmake -DFOGLAMP_INSTALL=/usr/local/foglamp
-
-******************************
-Packaging for 'modbusc' south
-******************************
-
-This repo contains the scripts used to create a foglamp-south-modbusc Debian package.
-
-The make_deb script
-===================
-
-Run the make_deb command after installing libmodbus-dev:
-
-.. code-block:: console
-
-  $ ./make_deb help
-  make_deb [help|clean|cleanall]
-  This script is used to create the Debian package of FoglAMP C++ 'modbusc' south plugin
-  Arguments:
-   help     - Display this help text
-   clean    - Remove all the old versions saved in format .XXXX
-   cleanall - Remove all the versions, including the last one
-  $
-
-Building a Package
-==================
-
-Finally, run the ``make_deb`` command:
-
-.. code-block:: console
-
-   $ ./make_deb
-   The package root directory is   : /home/ubuntu/source/foglamp-south-modbus-c
-   The FogLAMP required version    : >=1.4
-   The package will be built in    : /home/ubuntu/source/foglamp-south-modbus-c/packages/build
-   The architecture is set as      : x86_64
-   The package name is             : foglamp-south-modbusc-1.0.0-x86_64
-
-   Populating the package and updating version file...Done.
-   Building the new package...
-   dpkg-deb: building package 'foglamp-south-modbusc' in 'foglamp-south-modbusc-1.0.0-x86_64.deb'.
-   Building Complete.
-   $
-
-Cleaning the Package Folder
-===========================
-
-Use the ``clean`` option to remove all the old packages and the files used to make the package.
-
-Use the ``cleanall`` option to remove all the packages and the files used to make the package.
