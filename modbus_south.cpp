@@ -445,6 +445,33 @@ Logger	*log = Logger::getLogger();
 						log->error("The type property of %s must be a string", name.c_str());
 					}
 				}
+				if (itr->HasMember("swap"))
+				{
+					if ((*itr)["swap"].IsString())
+					{
+						string swap =  (*itr)["swap"].GetString();
+						if (swap.compare("bytes") == 0)
+						{
+							m_lastItem->setFlag(ITEM_SWAP_BYTES);
+						}
+						else if (swap.compare("words") == 0)
+						{
+							m_lastItem->setFlag(ITEM_SWAP_WORDS);
+						}
+						else if (swap.compare("both") == 0)
+						{
+							m_lastItem->setFlag(ITEM_SWAP_BYTES|ITEM_SWAP_WORDS);
+						}
+						else
+						{
+						log->error("The swap property of %s must be one of bytes, words or both", name.c_str());
+						}
+					}
+					else
+					{
+						log->error("The swap property of %s must be a string", name.c_str());
+					}
+				}
 				if (rCount == 0)
 				{
 					log->error("%s in map must have one of coil, input, register or inputRegister properties", name.c_str());
@@ -918,6 +945,18 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 				regValue |= (val << (a * 16));
 			}
 		}
+		if (m_map->m_flags & ITEM_SWAP_BYTES)
+		{
+			unsigned long odd = regValue & 0x00ff00ff;
+			unsigned long even = regValue & 0xff00ff00;
+			regValue = (odd << 8) | (even >> 8);
+		}
+		if (m_map->m_flags & ITEM_SWAP_WORDS)
+		{
+			unsigned long odd = regValue & 0xffff;
+			unsigned long even = regValue & 0xffff0000;
+			regValue = (odd << 16) | (even >> 16);
+		}
 		if (m_map->m_flags & ITEM_TYPE_FLOAT)
 		{
 			union {
@@ -986,6 +1025,18 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 			{
 				regValue |= (val << (a * 16));
 			}
+		}
+		if (m_map->m_flags & ITEM_SWAP_BYTES)
+		{
+			unsigned long odd = regValue & 0x00ff00ff;
+			unsigned long even = regValue & 0xff00ff00;
+			regValue = (odd << 8) | (even >> 8);
+		}
+		if (m_map->m_flags & ITEM_SWAP_WORDS)
+		{
+			unsigned long odd = regValue & 0xffff;
+			unsigned long even = regValue & 0xffff0000;
+			regValue = (odd << 16) | (even >> 16);
 		}
 		if (m_map->m_flags & ITEM_TYPE_FLOAT)
 		{
