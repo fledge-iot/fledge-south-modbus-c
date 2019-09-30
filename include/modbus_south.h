@@ -18,6 +18,8 @@
 #include <mutex>
 
 #define ITEM_TYPE_FLOAT			0x0001
+#define ITEM_SWAP_BYTES			0x0002
+#define ITEM_SWAP_WORDS			0x0004
 
 #define CACHE_THRESHOLD			5	// The number of contiguous registers we need before we create a cache
 
