@@ -89,42 +89,48 @@ const char *def_cfg = QUOTE({
 			"type" : "string",
 			"default" : "127.0.0.1", 
 			"order": "3",
-			"displayName": "Server Address"
+			"displayName": "Server Address",
+			"validity": "protocol == \"TCP\""
 			},
 		"port" : {
 			"description" : "Port of Modbus TCP server", 
 			"type" : "integer",
 			"default" : "2222", 
 			"order": "4",
-			"displayName": "Port"
+			"displayName": "Port",
+			"validity" : "protocol == \"TCP\""
 			},
 		"device" : {
 			"description" : "Device for Modbus RTU",
 			"type" : "string",
 			"default" : "",
 			"order": "5",
-			"displayName": "Device"
+			"displayName": "Device",
+			"validity" : "protocol == \"RTU\""
 			},
 		"baud" : {
 			"description" : "Baud rate  of Modbus RTU",
 			"type" : "integer",
 			"default" : "9600",
 			"order": "6",
-			"displayName": "Baud Rate"
+			"displayName": "Baud Rate",
+			"validity" : "protocol == \"RTU\""
 			},
 		"bits" : {
 			"description" : "Number of data bits for Modbus RTU",
 			"type" : "integer",
 			"default" : "8",
 			"order": "7",
-			"displayName": "Number Of Data Bits"
+			"displayName": "Number Of Data Bits",
+			"validity" : "protocol == \"RTU\""
 			},
 		"stopbits" : {
 			"description" : "Number of stop bits for Modbus RTU",
 			"type" : "integer",
 			"default" : "1",
 			"order": "8",
-			"displayName": "Number Of Stop Bits"
+			"displayName": "Number Of Stop Bits",
+			"validity" : "protocol == \"RTU\""
 			},
 		"parity" : {
 			"description" : "Parity to use",
@@ -132,7 +138,8 @@ const char *def_cfg = QUOTE({
 			"default" : "none",
 			"options" : [ "none", "odd", "even" ],
 			"order": "9",
-			"displayName": "Parity"
+			"displayName": "Parity",
+			"validity" : "protocol == \"RTU\""
 			},
 		"slave" : {
 			"description" : "The Modbus device default slave ID",
