@@ -74,7 +74,8 @@ const char *def_cfg = QUOTE({
 			"type" : "string",
 			"default" : "modbus", 
 			"order": "1",
-			"displayName": "Asset Name"
+			"displayName": "Asset Name",
+			"mandatory": "true"
 			}, 
 		"protocol" : {
 			"description" : "Protocol",
