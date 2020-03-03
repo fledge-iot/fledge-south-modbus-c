@@ -695,6 +695,13 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 		setSlave(it->first);
 		for (int i = 0; i < it->second.size(); i++)
 		{
+			int retryCount = 0;
+retry:
+			if (retryCount > 10)
+			{
+				Logger::getLogger()->error("Excessive retries to read modbus, aborting");
+				return values;
+			}
 			Datapoint *dp = it->second[i]->read(m_modbus);
 			if (dp)
 			{
@@ -713,6 +720,8 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 				}
 				m_connected = true;
 				m_errcount = 0;
+				retryCount++;
+				goto retry;
 			}
 			else if (errno == EINVAL)
 			{
@@ -727,6 +736,24 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 				}
 				m_connected = true;
 				m_errcount = 0;
+				retryCount++;
+				goto retry;
+			}
+			else if (errno == ECONNRESET)
+			{
+				modbus_close(m_modbus);
+				Logger::getLogger()->warn("Modbus connection reset by peer, closing and re-establishing the connection");
+				m_connected = false;
+				if (modbus_connect(m_modbus) == -1)
+				{
+					Logger::getLogger()->error("Failed to connect to Modbus device %s: %s",
+						(m_tcp ? m_address.c_str() : m_device.c_str()), modbus_strerror(errno));
+					return values;
+				}
+				m_connected = true;
+				m_errcount = 0;
+				retryCount++;
+				goto retry;
 			}
 			else
 			{
