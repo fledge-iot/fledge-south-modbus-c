@@ -11,6 +11,7 @@
 #include <reading.h>
 #include <logger.h>
 #include <math.h>
+#include <string.h>
 
 /**
  * Set debug mode in the underlying modbus context. Set to
@@ -670,6 +671,7 @@ vector<Reading *>	*Modbus::takeReading()
 {
 vector<Reading *>	*values = new vector<Reading *>();
 ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
+int			reconnects = 0;
 
 	lock_guard<mutex> guard(m_configMutex);
 	if (!m_modbus)
@@ -755,13 +757,36 @@ retry:
 				retryCount++;
 				goto retry;
 			}
+			else if (errno == EMBBADDATA)
+			{
+				modbus_close(m_modbus);
+				Logger::getLogger()->warn("Incorrect data response from modbus slave, closing and re-establishing the connection");
+				m_connected = false;
+				if (modbus_connect(m_modbus) == -1)
+				{
+					Logger::getLogger()->error("Failed to connect to Modbus device %s: %s",
+						(m_tcp ? m_address.c_str() : m_device.c_str()), modbus_strerror(errno));
+					return values;
+				}
+				m_connected = true;
+				m_errcount = 0;
+				retryCount++;
+				goto retry;
+			}
 			else
 			{
-				Logger::getLogger()->warn("Failed with errno %d, errorcount %d", errno, m_errcount);
+				Logger::getLogger()->warn("Failed with error '%s', errorcount %d", modbus_strerror(errno), m_errcount);
 				m_errcount++;
 			}
 			if (m_errcount > ERR_THRESHOLD)
 			{
+				if (reconnects++ > RECONNECT_LIMIT)
+				{
+					Logger::getLogger()->error("Persistant failure of Modbus reads - abprting readng cycle");
+					values->clear();
+					delete values;
+					return NULL;
+				}
 				Logger::getLogger()->warn("Modbus excessive failures, closing and re-establishing the connection");
 				modbus_close(m_modbus);
 				m_connected = false;
@@ -773,6 +798,7 @@ retry:
 				}
 				m_connected = true;
 				m_errcount = 0;
+				goto retry;
 			}
 		}
 	}
@@ -898,7 +924,7 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 	{
 		value = new DatapointValue((long)manager->cachedValue(m_slave, MODBUS_COIL, m_map->m_registerNo));
 	}
-	else if (modbus_read_bits(modbus, m_map->m_registerNo, 1, &coilValue) == 1)
+	else if ((rc = modbus_read_bits(modbus, m_map->m_registerNo, 1, &coilValue)) == 1)
 	{
 		value = new DatapointValue((long)coilValue);
 	}
@@ -928,7 +954,7 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 	{
 		value = new DatapointValue((long)manager->cachedValue(m_slave, MODBUS_INPUT, m_map->m_registerNo));
 	}
-	else if (modbus_read_input_bits(modbus, m_map->m_registerNo, 1, &coilValue) == 1)
+	else if ((rc = modbus_read_input_bits(modbus, m_map->m_registerNo, 1, &coilValue)) == 1)
 	{
 		value = new DatapointValue((long)coilValue);
 	}
