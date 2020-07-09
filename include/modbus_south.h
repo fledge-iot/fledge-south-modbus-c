@@ -24,7 +24,8 @@
 #define CACHE_THRESHOLD			5	// The number of contiguous registers we need before we create a cache
 
 #define MAX_MODBUS_BLOCK		100 	// Max number of registers to read in a single call
-#define ERR_THRESHOLD			2	// Threshold of error coutn before closing connection
+#define ERR_THRESHOLD			2	// Threshold of error count before closing connection
+#define RECONNECT_LIMIT			2	// Max reconnect attempts before failing a reading cycle
 
 typedef enum { MODBUS_COIL, MODBUS_INPUT, MODBUS_REGISTER, MODBUS_INPUT_REGISTER } ModbusSource;
 
