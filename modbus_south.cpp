@@ -980,7 +980,6 @@ uint16_t		regValue;
 int			rc;
 ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 
-
 	errno = 0;
 	if (m_map->m_isVector)
 	{
@@ -1027,7 +1026,7 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 			value = new DatapointValue(finalValue);
 		}
 	}
-	if (manager->isCached(m_slave, MODBUS_REGISTER, m_map->m_registerNo))
+	else if (manager->isCached(m_slave, MODBUS_REGISTER, m_map->m_registerNo))
 	{
 		regValue = manager->cachedValue(m_slave, MODBUS_REGISTER, m_map->m_registerNo);
 		double finalValue = m_map->m_offset + (regValue * m_map->m_scale);
