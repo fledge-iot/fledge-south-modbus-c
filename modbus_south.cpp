@@ -931,6 +931,7 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 	else if (rc == -1)
 	{
 		Logger::getLogger()->error("Modbus read coil %d, %s", m_map->m_registerNo, modbus_strerror(errno));
+		return NULL;
 	}
 	return value;
 }
@@ -961,6 +962,7 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 	else if (rc == -1)
 	{
 		Logger::getLogger()->error("Modbus read input bit %d, %s", m_map->m_registerNo, modbus_strerror(errno));
+		return NULL;
 	}
 	return value;
 }
@@ -984,6 +986,7 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 	if (m_map->m_isVector)
 	{
 		long regValue = 0;
+		bool failure = false;
 		for (int a = 0; a < m_map->m_registers.size(); a++)
 		{
 			uint16_t val;
@@ -996,6 +999,15 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 			{
 				regValue |= (val << (a * 16));
 			}
+			else
+			{
+				Logger::getLogger()->error("Modbus read register %d, %s", m_map->m_registers[a], modbus_strerror(errno));
+				failure = true;
+			}
+		}
+		if (failure)
+		{
+			return NULL;
 		}
 		if (m_map->m_flags & ITEM_SWAP_BYTES)
 		{
@@ -1042,6 +1054,7 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 	else if (rc == -1)
 	{
 		Logger::getLogger()->error("Modbus read register %d, %s", m_map->m_registerNo, modbus_strerror(errno));
+		return NULL;
 	}
 	return value;
 }
@@ -1065,6 +1078,7 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 	if (m_map->m_isVector)
 	{
 		long regValue = 0;
+		bool failure = false;
 		for (int a = 0; a < m_map->m_registers.size(); a++)
 		{
 			uint16_t val;
@@ -1077,6 +1091,15 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 			{
 				regValue |= (val << (a * 16));
 			}
+			else
+			{
+				Logger::getLogger()->error("Modbus read input register %d, %s", m_map->m_registerNo, modbus_strerror(errno));
+				failure = true;
+			}
+		}
+		if (failure)
+		{
+			return NULL;
 		}
 		if (m_map->m_flags & ITEM_SWAP_BYTES)
 		{
@@ -1123,6 +1146,7 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 	else if (rc == -1)
 	{
 		Logger::getLogger()->error("Modbus read input register %d, %s", m_map->m_registerNo, modbus_strerror(errno));
+		return NULL;
 	}
 	return value;
 }
