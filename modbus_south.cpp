@@ -34,7 +34,6 @@ Modbus::Modbus() : m_modbus(0), m_tcp(false), m_port(0), m_device(""),
 	m_baud(0), m_bits(0), m_stopBits(0), m_parity('E'), m_errcount(0),
 	m_timeout(0.5)
 {
-	Logger::getLogger()->setMinLevel("debug");
 }
 
 /**
