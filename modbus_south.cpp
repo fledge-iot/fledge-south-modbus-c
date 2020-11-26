@@ -83,7 +83,7 @@ void Modbus::createModbus()
 			throw runtime_error("Failed to create mnodbus context");
 		}
 	}
-#if 1
+#if DEBUG
 	modbus_set_debug(m_modbus, true);
 #endif
 	errno = 0;
