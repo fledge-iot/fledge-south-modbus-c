@@ -200,6 +200,7 @@ class Modbus {
 		std::mutex			m_configMutex;
 		RegisterMap			*m_lastItem;
 		int				m_errcount;
+		float				m_timeout;
 
 
 };
