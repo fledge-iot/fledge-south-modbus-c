@@ -31,7 +31,8 @@ using namespace std;
  * configuration data.
  */
 Modbus::Modbus() : m_modbus(0), m_tcp(false), m_port(0), m_device(""),
-	m_baud(0), m_bits(0), m_stopBits(0), m_parity('E'), m_errcount(0)
+	m_baud(0), m_bits(0), m_stopBits(0), m_parity('E'), m_errcount(0),
+	m_timeout(0.5)
 {
 	Logger::getLogger()->setMinLevel("debug");
 }
@@ -60,11 +61,19 @@ void Modbus::createModbus()
 	}
 	if (m_tcp)
 	{
-		if ((m_modbus = modbus_new_tcp(m_address.c_str(), m_port)) == NULL)
+		char port[40];
+		snprintf(port, sizeof(port), "%d", m_port);
+		if ((m_modbus = modbus_new_tcp_pi(m_address.c_str(), port)) == NULL)
 		{
 			Logger::getLogger()->fatal("Modbus plugin failed to create modbus context, %s", modbus_strerror(errno));
 			throw runtime_error("Failed to create modbus context");
 		}
+		struct timeval response_timeout;
+		response_timeout.tv_sec = floor(m_timeout);
+		response_timeout.tv_usec = (m_timeout - floor(m_timeout)) * 1000000;
+		Logger::getLogger()->debug("Set request timeout to %d seconds, %d uSeconds",
+				response_timeout.tv_sec, response_timeout.tv_usec);
+		modbus_set_response_timeout(m_modbus, &response_timeout);
 	}
 	else
 	{
@@ -74,7 +83,7 @@ void Modbus::createModbus()
 			throw runtime_error("Failed to create mnodbus context");
 		}
 	}
-#if DEBUG
+#if 1
 	modbus_set_debug(m_modbus, true);
 #endif
 	errno = 0;
@@ -145,6 +154,11 @@ Logger	*log = Logger::getLogger();
 					}
 				}
 			}
+			if (config->itemExists("timeout"))
+			{
+				m_timeout = strtod(config->getValue("timeout").c_str(), NULL);
+			}
+
 		}
 		else if (!proto.compare("RTU"))
 		{
@@ -776,6 +790,15 @@ retry:
 			else
 			{
 				Logger::getLogger()->warn("Failed with error '%s', errorcount %d", modbus_strerror(errno), m_errcount);
+				modbus_close(m_modbus);
+				m_connected = false;
+				if (modbus_connect(m_modbus) == -1)
+				{
+					Logger::getLogger()->error("Failed to connect to Modbus device %s: %s",
+						(m_tcp ? m_address.c_str() : m_device.c_str()), modbus_strerror(errno));
+					return values;
+				}
+				m_connected = true;
 				m_errcount++;
 			}
 			if (m_errcount > ERR_THRESHOLD)

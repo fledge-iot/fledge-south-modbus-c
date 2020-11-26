@@ -49,6 +49,7 @@ A Modbus south service is added in the same way as any other south service in Fl
 
     - **Register Map**: The register map defines which Modbus registers and coils you read, and how to map them to Fledge assets. The map is a complex JSON object which is described in more detail below.
 
+    - **Timeout**: The request timeout when communicating with a Modbus TCP client. This can be used to increase the timeout when a slow Modbus device or network is used.
 
 Register Map
 ~~~~~~~~~~~~
