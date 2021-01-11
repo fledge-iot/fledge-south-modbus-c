@@ -12,6 +12,7 @@
 #include <logger.h>
 #include <math.h>
 #include <string.h>
+#include <modbus/modbus-version.h>
 
 /**
  * Set debug mode in the underlying modbus context. Set to
@@ -72,10 +73,10 @@ void Modbus::createModbus()
 		response_timeout.tv_usec = (m_timeout - floor(m_timeout)) * 1000000;
 		Logger::getLogger()->debug("Set request timeout to %d seconds, %d uSeconds",
 				response_timeout.tv_sec, response_timeout.tv_usec);
-#ifdef __arm__
-		modbus_set_response_timeout(m_modbus, response_timeout.tv_sec, response_timeout.tv_usec);
-#else
+#if LIBMODBUS_VERSION_MINOR == 0
 		modbus_set_response_timeout(m_modbus, &response_timeout);
+#else
+		modbus_set_response_timeout(m_modbus, response_timeout.tv_sec, response_timeout.tv_usec);
 #endif
 	}
 	else
