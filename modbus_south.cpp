@@ -12,6 +12,7 @@
 #include <logger.h>
 #include <math.h>
 #include <string.h>
+#include <modbus/modbus-version.h>
 
 /**
  * Set debug mode in the underlying modbus context. Set to
@@ -31,9 +32,9 @@ using namespace std;
  * configuration data.
  */
 Modbus::Modbus() : m_modbus(0), m_tcp(false), m_port(0), m_device(""),
-	m_baud(0), m_bits(0), m_stopBits(0), m_parity('E'), m_errcount(0)
+	m_baud(0), m_bits(0), m_stopBits(0), m_parity('E'), m_errcount(0),
+	m_timeout(0.5)
 {
-	Logger::getLogger()->setMinLevel("debug");
 }
 
 /**
@@ -60,11 +61,23 @@ void Modbus::createModbus()
 	}
 	if (m_tcp)
 	{
-		if ((m_modbus = modbus_new_tcp(m_address.c_str(), m_port)) == NULL)
+		char port[40];
+		snprintf(port, sizeof(port), "%d", m_port);
+		if ((m_modbus = modbus_new_tcp_pi(m_address.c_str(), port)) == NULL)
 		{
 			Logger::getLogger()->fatal("Modbus plugin failed to create modbus context, %s", modbus_strerror(errno));
 			throw runtime_error("Failed to create modbus context");
 		}
+		struct timeval response_timeout;
+		response_timeout.tv_sec = floor(m_timeout);
+		response_timeout.tv_usec = (m_timeout - floor(m_timeout)) * 1000000;
+		Logger::getLogger()->debug("Set request timeout to %d seconds, %d uSeconds",
+				response_timeout.tv_sec, response_timeout.tv_usec);
+#if LIBMODBUS_VERSION_MINOR == 0
+		modbus_set_response_timeout(m_modbus, &response_timeout);
+#else
+		modbus_set_response_timeout(m_modbus, response_timeout.tv_sec, response_timeout.tv_usec);
+#endif
 	}
 	else
 	{
@@ -145,6 +158,11 @@ Logger	*log = Logger::getLogger();
 					}
 				}
 			}
+			if (config->itemExists("timeout"))
+			{
+				m_timeout = strtod(config->getValue("timeout").c_str(), NULL);
+			}
+
 		}
 		else if (!proto.compare("RTU"))
 		{
@@ -776,6 +794,15 @@ retry:
 			else
 			{
 				Logger::getLogger()->warn("Failed with error '%s', errorcount %d", modbus_strerror(errno), m_errcount);
+				modbus_close(m_modbus);
+				m_connected = false;
+				if (modbus_connect(m_modbus) == -1)
+				{
+					Logger::getLogger()->error("Failed to connect to Modbus device %s: %s",
+						(m_tcp ? m_address.c_str() : m_device.c_str()), modbus_strerror(errno));
+					return values;
+				}
+				m_connected = true;
 				m_errcount++;
 			}
 			if (m_errcount > ERR_THRESHOLD)
@@ -931,6 +958,7 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 	else if (rc == -1)
 	{
 		Logger::getLogger()->error("Modbus read coil %d, %s", m_map->m_registerNo, modbus_strerror(errno));
+		return NULL;
 	}
 	return value;
 }
@@ -961,6 +989,7 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 	else if (rc == -1)
 	{
 		Logger::getLogger()->error("Modbus read input bit %d, %s", m_map->m_registerNo, modbus_strerror(errno));
+		return NULL;
 	}
 	return value;
 }
@@ -980,11 +1009,11 @@ uint16_t		regValue;
 int			rc;
 ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 
-
 	errno = 0;
 	if (m_map->m_isVector)
 	{
 		long regValue = 0;
+		bool failure = false;
 		for (int a = 0; a < m_map->m_registers.size(); a++)
 		{
 			uint16_t val;
@@ -997,6 +1026,15 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 			{
 				regValue |= (val << (a * 16));
 			}
+			else
+			{
+				Logger::getLogger()->error("Modbus read register %d, %s", m_map->m_registers[a], modbus_strerror(errno));
+				failure = true;
+			}
+		}
+		if (failure)
+		{
+			return NULL;
 		}
 		if (m_map->m_flags & ITEM_SWAP_BYTES)
 		{
@@ -1027,7 +1065,7 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 			value = new DatapointValue(finalValue);
 		}
 	}
-	if (manager->isCached(m_slave, MODBUS_REGISTER, m_map->m_registerNo))
+	else if (manager->isCached(m_slave, MODBUS_REGISTER, m_map->m_registerNo))
 	{
 		regValue = manager->cachedValue(m_slave, MODBUS_REGISTER, m_map->m_registerNo);
 		double finalValue = m_map->m_offset + (regValue * m_map->m_scale);
@@ -1043,6 +1081,7 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 	else if (rc == -1)
 	{
 		Logger::getLogger()->error("Modbus read register %d, %s", m_map->m_registerNo, modbus_strerror(errno));
+		return NULL;
 	}
 	return value;
 }
@@ -1066,6 +1105,7 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 	if (m_map->m_isVector)
 	{
 		long regValue = 0;
+		bool failure = false;
 		for (int a = 0; a < m_map->m_registers.size(); a++)
 		{
 			uint16_t val;
@@ -1078,6 +1118,15 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 			{
 				regValue |= (val << (a * 16));
 			}
+			else
+			{
+				Logger::getLogger()->error("Modbus read input register %d, %s", m_map->m_registerNo, modbus_strerror(errno));
+				failure = true;
+			}
+		}
+		if (failure)
+		{
+			return NULL;
 		}
 		if (m_map->m_flags & ITEM_SWAP_BYTES)
 		{
@@ -1124,6 +1173,7 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 	else if (rc == -1)
 	{
 		Logger::getLogger()->error("Modbus read input register %d, %s", m_map->m_registerNo, modbus_strerror(errno));
+		return NULL;
 	}
 	return value;
 }

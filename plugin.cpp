@@ -155,6 +155,14 @@ const char *def_cfg = QUOTE({
 			"displayName": "Register Map", 
 			"type" : "JSON",
 			"default" : MODBUS_MAP
+			},
+		"timeout" : {
+			"description" : "Modbus request timeout",
+			"type" : "float",
+			"default" : "0.5",
+			"order": "12",
+			"displayName": "Timeout",
+			"validity" : "protocol == \"TCP\""
 			}
 		});
 
