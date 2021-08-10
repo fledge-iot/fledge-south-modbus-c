@@ -54,9 +54,9 @@ A Modbus south service is added in the same way as any other south service in Fl
 
     - **Control**: Which register map should be used for mapping control entities to modebus registers.
 
-      +-------------+
-      | |nmodbus_2| |
-      +-------------+
+      +------------+
+      | |modbus_2| |
+      +------------+
 
       If no control is required then this may be set to *None*. Setting this to *Use Register Map* will cause all the registers that are being rad to also be targets for control. Setting this to *Use Control Map* will case the serperate *Control Map* to be used to map the control set points to modbus registers.
 
