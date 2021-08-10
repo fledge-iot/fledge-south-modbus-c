@@ -266,6 +266,20 @@ Logger	*log = Logger::getLogger();
 		setAssetName("modbus");
 	}
 
+	string control = config->getValue("control");
+	if (control.compare("None") == 0)
+	{
+		m_control = NoControlMap;
+	}
+	else if (control.compare("Use Register Map") == 0)
+	{
+		m_control = UseRegisterMap;
+	}
+	else if (control.compare("Use Control Map") == 0)
+	{
+		m_control = UseControlMap;
+	}
+
 	/*
 	 * Remove any previous map
 	 */
@@ -545,7 +559,269 @@ Logger	*log = Logger::getLogger();
 		log->error("Parse error in modbus map, the map must be a valid JSON object");
 	}
 
+
+	// Now process the Modbus control map if there is one
+	if (m_control == UseControlMap)
+	{
+		string map = config->getValue("controlmap");
+		rapidjson::Document doc;
+		doc.Parse(map.c_str());
+		if (!doc.HasParseError())
+		{
+			if (doc.HasMember("values") && doc["values"].IsArray())
+			{
+				int errorCount = 0;
+				const rapidjson::Value& values = doc["values"];
+				for (rapidjson::Value::ConstValueIterator itr = values.Begin();
+							itr != values.End(); ++itr)
+				{
+					ModbusEntity *entity = createEntity(*itr);
+					string name = entity->getMap()->m_name;
+					m_writeMap.insert(pair<string, Modbus::ModbusEntity *>(name, entity));
+				}
+			}
+		}
+		else
+		{
+			log->error("Parse error in modbus map, the map must be a valid JSON object");
+		}
+	}
+
 	optimise();
+}
+
+/**
+ * Create a ModbusEntity from the values in the JSON configuration
+ * item for that entity
+ *
+ * @param item	The set of key/value pairs for the item
+ * @return The new ModbusEntity or null on error
+ */
+Modbus::ModbusEntity *Modbus::createEntity(const rapidjson::Value& item)
+{
+int rCount = 0;
+int slaveID = getDefaultSlave();
+float scale = 1.0;
+float offset = 0.0;
+string name = "";
+string assetName = "";
+ModbusEntity *rval = NULL;
+Logger *log = Logger::getLogger();
+int errorCount = 0;
+
+	if (item.HasMember("slave"))
+	{
+		if (! item["slave"].IsInt())
+		{
+			log->error("The value of slave in the modbus map should be an integer");
+			errorCount++;
+		}
+		else
+		{
+			slaveID = item["slave"].GetInt();
+		}
+	}
+	if (item.HasMember("name"))
+	{
+		if (item["name"].IsString())
+		{
+			name = item["name"].GetString();
+		}
+		else
+		{
+			log->error("The value of name in the modbus map should be a string");
+			errorCount++;
+		}
+	}
+	else
+	{
+		log->error("Each item in the modbus map must have a name property");
+		errorCount++;
+		return rval;
+	}
+	if (item.HasMember("assetName"))
+	{
+		if (item["assetName"].IsString())
+		{
+			assetName = item["assetName"].GetString();
+		}
+		else
+		{
+			log->error("The value of assetName in the %s modbus map should be a string", name.c_str());
+			errorCount++;
+		}
+	}
+	if (item.HasMember("scale"))
+	{
+		if (! item["scale"].IsNumber())
+		{
+			log->error("The value of scale in the %s modbus map should be a floating point number", name.c_str());
+			errorCount++;
+		}
+		else
+		{
+			scale = item["scale"].GetFloat();
+		}
+	}
+	if (item.HasMember("offset"))
+	{
+		if (! item["offset"].IsNumber())
+		{
+			log->error("The value of offset in the %s modbus map should be a floating point number", name.c_str());
+			errorCount++;
+		}
+		else
+		{
+			offset = item["offset"].GetFloat();
+		}
+	}
+	if (item.HasMember("coil"))
+	{
+		rCount++;
+		if (! item["coil"].IsNumber())
+		{
+			log->error("The value of coil in the %s modbus map should be a number", name.c_str());
+			errorCount++;
+		}
+		else
+		{
+			int coil = item["coil"].GetInt();
+			rval = new ModbusCoil(slaveID, createRegisterMap(assetName, name, coil, scale, offset));
+		}
+	}
+	if (item.HasMember("input"))
+	{
+		rCount++;
+		if (item["input"].IsInt())
+		{
+			int input = item["input"].GetInt();
+			rval = new ModbusInputBits(slaveID, createRegisterMap(assetName, name, input, scale, offset));
+		}
+		else
+		{
+			log->error("The input item in the %s modbus map must be either an integer", name.c_str());
+			errorCount++;
+		}
+	}
+	if (item.HasMember("register"))
+	{
+		rCount++;
+		if (item["register"].IsInt())
+		{
+			int regNo = item["register"].GetInt();
+			rval =  new ModbusRegister(slaveID, createRegisterMap(assetName, name, regNo, scale, offset));
+		}
+		else if (item["register"].IsArray())
+		{
+			vector<unsigned int>	words;
+			for (rapidjson::Value::ConstValueIterator item2 = item["register"].Begin();
+				item2 != item["register"].End(); ++item2)
+			{
+				if (item2->IsInt())
+				{
+					words.push_back(item2->GetInt());
+				}
+				else
+				{
+					log->error("The modbus map %s register array must contain integer values", name.c_str());
+					errorCount++;
+				}
+			}
+			rval = new ModbusRegister(slaveID, createRegisterMap(assetName, name, words, scale, offset));
+		}
+		else
+		{
+			log->error("The input item in the %s modbus map must be either an integer or an array", name.c_str());
+			errorCount++;
+		}
+	}
+	if (item.HasMember("inputRegister"))
+	{
+		rCount++;
+		if (item["inputRegister"].IsInt())
+		{
+			int regNo = item["inputRegister"].GetInt();
+			rval = new ModbusInputRegister(slaveID, createRegisterMap(assetName, name, regNo, scale, offset));
+		}
+		else if (item["inputRegister"].IsArray())
+		{
+			vector<unsigned int>	words;
+			for (rapidjson::Value::ConstValueIterator item2 = item["inputRegister"].Begin();
+				item2 != item["inputRegister"].End(); ++item2)
+			{
+				if (item2->IsInt())
+				{
+					words.push_back(item2->GetInt());
+				}
+				else
+				{
+					log->error("The %s modbus map input register array must contain integer values", name.c_str());
+					errorCount++;
+				}
+			}
+			rval =  new ModbusInputRegister(slaveID, createRegisterMap(assetName, name, words, scale, offset));
+		}
+		else
+		{
+			log->error("The input item in the %s modbus map must be either an integer or an array", name.c_str());
+			errorCount++;
+		}
+	}
+	// Now deal with flags for the item we have just added
+	if (item.HasMember("type"))
+	{
+		if (item["type"].IsString())
+		{
+			string type = item["type"].GetString();
+			if (type.compare("float") == 0)
+			{
+				m_lastItem->setFlag(ITEM_TYPE_FLOAT);
+			}
+		}
+		else
+		{
+			log->error("The type property of %s must be a string", name.c_str());
+		}
+	}
+	if (item.HasMember("swap"))
+	{
+		if (item["swap"].IsString())
+		{
+			string swap =  item["swap"].GetString();
+			if (swap.compare("bytes") == 0)
+			{
+				m_lastItem->setFlag(ITEM_SWAP_BYTES);
+			}
+			else if (swap.compare("words") == 0)
+			{
+				m_lastItem->setFlag(ITEM_SWAP_WORDS);
+			}
+			else if (swap.compare("both") == 0)
+			{
+				m_lastItem->setFlag(ITEM_SWAP_BYTES|ITEM_SWAP_WORDS);
+			}
+			else
+			{
+			log->error("The swap property of %s must be one of bytes, words or both", name.c_str());
+			}
+		}
+		else
+		{
+			log->error("The swap property of %s must be a string", name.c_str());
+		}
+	}
+	if (rCount == 0)
+	{
+		log->error("%s in map must have one of coil, input, register or inputRegister properties", name.c_str());
+		errorCount++;
+	}
+	else if (rCount > 1)
+	{
+		log->error("%s in map must only have one of coil, input, register or inputRegister properties", name.c_str());
+		errorCount++;
+	}
+
+	return rval;
 }
 
 /**
@@ -663,6 +939,12 @@ RegisterMap		*map = entity->getMap();
 		m_map.insert(pair<int, vector<Modbus::ModbusEntity *> >(slave, empty));
 		m_map[slave].push_back(entity);
 	}
+
+	if (m_control == UseRegisterMap)
+	{
+		string name = map->m_name;
+		m_writeMap.insert(pair<string, Modbus::ModbusEntity *>(name, entity));
+	}
 }
 
 /**
@@ -678,6 +960,13 @@ Modbus::removeMap()
 			delete it->second[i];
 		}
 		it->second.clear();
+	}
+	if (m_control == UseControlMap)
+	{
+	}
+	else if (m_control == UseRegisterMap)
+	{
+		m_writeMap.clear();
 	}
 }
 
@@ -964,6 +1253,21 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 }
 
 /**
+ * Write operation on a modbus coil
+ */
+bool Modbus::ModbusCoil::write(modbus_t *modbus, const string& strValue)
+{
+	Logger::getLogger()->debug("Modbus write coil with '%s'", strValue.c_str());
+	int state = strtol(strValue.c_str(), NULL, 10);
+	if (modbus_write_bit(modbus, m_map->m_registerNo, state) != 1)
+	{
+		Logger::getLogger()->error("Modbus write of coil %d failed, %s", m_map->m_registerNo, modbus_strerror(errno));
+		return false;
+	}
+	return true;
+}
+
+/**
  * Read a modbus input bits
  *
  * @param modbus	The modbus connection
@@ -994,6 +1298,14 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 	return value;
 }
 
+/**
+ * Write operation on a modbus inpout bits
+ */
+bool Modbus::ModbusInputBits::write(modbus_t *modbus, const string& strValue)
+{
+	Logger::getLogger()->error("Attempt to write modbus input bits");
+	return false;
+}
 
 /**
  * Read a modbus register
@@ -1086,6 +1398,78 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 	return value;
 }
 
+/**
+ * Write operation on a modbus register
+ */
+bool Modbus::ModbusRegister::write(modbus_t *modbus, const string& strValue)
+{
+long			value;
+int			rc;
+
+	errno = 0;
+	if (m_map->m_isVector)
+	{
+		if (m_map->m_flags & ITEM_TYPE_FLOAT)
+		{
+			union {
+				uint32_t	ival;
+				float		fval;
+			} data;
+			data.fval = strtod(strValue.c_str(), NULL);
+			data.fval = m_map->m_offset + (data.fval * m_map->m_scale);
+			value = data.ival;
+		}
+		else
+		{
+			value = strtol(strValue.c_str(), NULL, 10);
+			double dvalue  = (value / m_map->m_scale) - m_map->m_offset;
+			value = m_map->round(dvalue, 16);
+		}
+		if (m_map->m_flags & ITEM_SWAP_BYTES)
+		{
+			unsigned long odd = value & 0x00ff00ff;
+			unsigned long even = value & 0xff00ff00;
+			value = (odd << 8) | (even >> 8);
+		}
+		if (m_map->m_flags & ITEM_SWAP_WORDS)
+		{
+			unsigned long odd = value & 0xffff;
+			unsigned long even = value & 0xffff0000;
+			value = (odd << 16) | (even >> 16);
+		}
+		bool failure = false;
+		for (int a = 0; a < m_map->m_registers.size(); a++)
+		{
+			uint16_t val = value & 0xffff;
+			if ((rc = modbus_write_register(modbus, m_map->m_registers[a], val)) == 1)
+			{
+				value >>= 16;
+			}
+			else
+			{
+				Logger::getLogger()->error("Modbus write register %d failed, %s", m_map->m_registers[a], modbus_strerror(errno));
+				failure = true;
+			}
+		}
+		if (failure)
+		{
+			return false;
+		}
+	}
+	else
+	{
+		value = strtol(strValue.c_str(), NULL, 10);
+		double dvalue  = (value / m_map->m_scale) - m_map->m_offset;
+		value = m_map->round(dvalue, 16);
+		if ((rc = modbus_write_register(modbus, m_map->m_registerNo, value)) != 1)
+		{
+			Logger::getLogger()->error("Modbus write register %d failed, %s", m_map->m_registerNo, modbus_strerror(errno));
+			return false;
+		}
+	}
+	return true;
+}
+
 
 /**
  * Read a modbus input register
@@ -1176,4 +1560,35 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 		return NULL;
 	}
 	return value;
+}
+
+/**
+ * Write operaiton on an input register
+ *
+ */
+bool Modbus::ModbusInputRegister::write(modbus_t *modbus, const string& value)
+{
+	Logger::getLogger()->error("Attempt to write to a modbus input register");
+	return false;
+}
+
+
+/**
+ * Setpoint write operation
+ *
+ * @param name	Name of the parameter to write
+ * @param value	Value to write to the parameter
+ * @return True if the operations was succesful, otherwise false
+ */
+bool Modbus::write(const string& name, const string& value)
+{
+	Logger::getLogger()->debug("Modbus write '%s' with '%s'", name.c_str(), value.c_str());
+	auto res = m_writeMap.find(name);
+	if (res	!= m_writeMap.end())
+	{
+		ModbusEntity *entity = res->second;
+		return entity->write(m_modbus, value);
+	}
+	Logger::getLogger()->error("Modbus write operation unable to locate map entry for '%s'", name.c_str());
+	return false;
 }
