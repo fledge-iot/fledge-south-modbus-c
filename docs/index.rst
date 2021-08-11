@@ -1,5 +1,6 @@
 .. Images
 .. |modbus_1| image:: images/modbus_1.jpg
+.. |modbus_2| image:: images/modbus_2.jpg
 
 Modbus South Plugin
 ===================
@@ -51,6 +52,16 @@ A Modbus south service is added in the same way as any other south service in Fl
 
     - **Timeout**: The request timeout when communicating with a Modbus TCP client. This can be used to increase the timeout when a slow Modbus device or network is used.
 
+    - **Control**: Which register map should be used for mapping control entities to modebus registers.
+
+      +------------+
+      | |modbus_2| |
+      +------------+
+
+      If no control is required then this may be set to *None*. Setting this to *Use Register Map* will cause all the registers that are being rad to also be targets for control. Setting this to *Use Control Map* will case the serperate *Control Map* to be used to map the control set points to modbus registers.
+
+    - *Control Map*: The register map that is used to map the set point names into Modbus registers for the purpose of set point control. The control map is the same JSON format document as the register map and uses the same set of properties.
+
 Register Map
 ~~~~~~~~~~~~
 
@@ -73,6 +84,8 @@ The map is a JSON object with a single array *values*, each element of this arra
 |               | plugin to be overridden on an individual basis. Multiple values in the  |
 |               | values array may share the same AssetName, in which case the values     |
 |               | read from the Modbus device are placed in the same asset.               |
+|               |                                                                         |
+|               | Note: This is unused in a control map.                                  |
 +---------------+-------------------------------------------------------------------------+
 | register      | This defines the Modbus register that is read. It may be a single       |
 |               | register, it which case the value is the register number or it may be   |
@@ -161,3 +174,25 @@ The Modbus Map for this example would be as follow:
     }
 
 Since none of these values have an assetName defined all there values will be stored in a single asset, the name of which is the default asset name defined for the plugin as a whole. This asset will have three data points within it; *temperature*, *speed* and *active*.
+
+Set Point Control
+-----------------
+
+The *fledge-south-modbus-c* plugin supports the Fledge set point control mechanisms and allows a register map to be defined that maps the set point attributes to the underlyign modbus registers. As an example a control map as follows
+
+.. code-block:: JSON
+
+   {
+       "values" : [
+           {
+              "name" : "active",
+              "coil" : 1
+           }
+         ]
+   }
+
+Defines that a set point write operation can be instigated agisnt the set point named *active* and this will map to the Modbus coil 1.
+
+Set points may be defined for Modbus coils and registers, the rad only input bits and input registers can not be used for set point control.
+
+The *Control Map* can use the same swapping, scaling and offset properties as modbus *Register Map*, it can also map multiple registers to a single set point and flaotign point values.
