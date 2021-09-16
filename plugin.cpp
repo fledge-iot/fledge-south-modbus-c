@@ -67,7 +67,7 @@ using namespace std;
 			  ]					\
 		})
 
-const char *def_cfg = QUOTE({
+static const char *def_cfg = QUOTE({
 		"plugin" : {
 			"description" : "Modbus TCP and RTU C south plugin",
 			"type" : "string",
