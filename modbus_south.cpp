@@ -1098,7 +1098,7 @@ retry:
 			{
 				if (reconnects++ > RECONNECT_LIMIT)
 				{
-					Logger::getLogger()->error("Persistant failure of Modbus reads - abprting readng cycle");
+					Logger::getLogger()->error("Persistant failure of Modbus reads - aborting readng cycle");
 					values->clear();
 					delete values;
 					return NULL;
@@ -1438,17 +1438,78 @@ int			rc;
 			value = (odd << 16) | (even >> 16);
 		}
 		bool failure = false;
-		for (int a = 0; a < m_map->m_registers.size(); a++)
+		// Attempt to do a single write if the vector is contiguous
+		bool ascending = true, descending = true;
+		int prev = m_map->m_registers[0];
+		for (int i = 1; i < m_map->m_registers.size(); i++)
 		{
-			uint16_t val = value & 0xffff;
-			if ((rc = modbus_write_register(modbus, m_map->m_registers[a], val)) == 1)
+			int cur = m_map->m_registers[i];
+			if (cur != prev + 1)
+				ascending = false;
+			if (cur != prev - 1)
+				descending = false;
+			prev = cur;
+		}
+		if (ascending)
+		{
+			size_t	registers = m_map->m_registers.size();
+			uint16_t *data = (uint16_t *)malloc(registers * sizeof(uint16_t));
+			if (data)
 			{
-				value >>= 16;
+				for (int i = 0; i < registers; i++)
+				{
+					data[i] = (value >> (16 * i)) & 0xffff;
+				}
+				if ((rc = modbus_write_registers(modbus, m_map->m_registers[0], registers, data)) == -1)
+				{
+					Logger::getLogger()->error("Modbus write registers failed, %s.", modbus_strerror(errno));
+					return false;
+				}
+				else
+				{
+					free(data);
+					return true;
+				}
 			}
-			else
+		}
+		else if (descending)
+		{
+			size_t	registers = m_map->m_registers.size();
+			uint16_t *data = (uint16_t *)malloc(registers * sizeof(uint16_t));
+			int regNo = m_map->m_registers[registers-1];
+			if (data)
 			{
-				Logger::getLogger()->error("Modbus write register %d failed, %s", m_map->m_registers[a], modbus_strerror(errno));
-				failure = true;
+				for (int i = registers - 1; i >= 0; i--)
+				{
+					data[i] = (value >> (16 * i)) & 0xffff;
+				}
+				if ((rc = modbus_write_registers(modbus, regNo, registers, data)) == -1)
+				{
+					Logger::getLogger()->error("Modbus write registers failed, %s.", modbus_strerror(errno));
+					return false;
+				}
+				else
+				{
+					free(data);
+					return true;
+				}
+			}
+		}
+		else
+		{
+			for (int a = 0; a < m_map->m_registers.size(); a++)
+			{
+				uint16_t val = value & 0xffff;
+				if ((rc = modbus_write_register(modbus, m_map->m_registers[a], val)) == 1)
+				{
+					value >>= 16;
+				}
+				else
+				{
+					Logger::getLogger()->error("Modbus write register %d failed, %s.", m_map->m_registers[a], modbus_strerror(errno));
+					return false;
+					
+				}
 			}
 		}
 		if (failure)
