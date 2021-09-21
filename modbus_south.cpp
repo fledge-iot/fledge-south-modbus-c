@@ -1524,7 +1524,7 @@ int			rc;
 		value = m_map->round(dvalue, 16);
 		if ((rc = modbus_write_register(modbus, m_map->m_registerNo, value)) != 1)
 		{
-			Logger::getLogger()->error("Modbus write register %d failed, %s", m_map->m_registerNo, modbus_strerror(errno));
+			Logger::getLogger()->error("Modbus write register %d failed to write value %d, %s", m_map->m_registerNo, value, modbus_strerror(errno));
 			return false;
 		}
 	}
@@ -1643,6 +1643,7 @@ bool Modbus::ModbusInputRegister::write(modbus_t *modbus, const string& value)
  */
 bool Modbus::write(const string& name, const string& value)
 {
+	lock_guard<mutex> guard(m_configMutex);
 	Logger::getLogger()->debug("Modbus write '%s' with '%s'", name.c_str(), value.c_str());
 	auto res = m_writeMap.find(name);
 	if (res	!= m_writeMap.end())
