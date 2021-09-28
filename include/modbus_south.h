@@ -16,6 +16,7 @@
 #include <vector>
 #include <map>
 #include <mutex>
+#include <queueMutex.h>
 
 #define ITEM_TYPE_FLOAT			0x0001
 #define ITEM_SWAP_BYTES			0x0002
@@ -205,15 +206,15 @@ class Modbus {
 		bool				m_tcp;
 		bool				m_connected;
 		int				m_defaultSlave;
-		std::mutex			m_configMutex;
+		QueueMutex			m_configMutex;
 		RegisterMap			*m_lastItem;
 		int				m_errcount;
 		float				m_timeout;
 		std::map<std::string, ModbusEntity *>
 						m_writeMap;
 		ModbusControlSource		m_control;
-
-
+		unsigned int			m_connectCount;
+		unsigned int			m_disconnectCount;
 };
 
 /**
