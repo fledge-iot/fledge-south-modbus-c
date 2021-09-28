@@ -611,6 +611,7 @@ Logger	*log = Logger::getLogger();
 		m_configMutex.unlock();
 		throw;
 	}
+	m_configMutex.unlock();
 }
 
 /**

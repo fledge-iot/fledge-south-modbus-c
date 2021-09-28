@@ -4,6 +4,7 @@
 #include <mutex>
 #include <condition_variable>
 #include <queue>
+#include <logger.h>
 
 /**
  * A simple implementation of a queued mutex.
@@ -20,6 +21,8 @@ class QueueMutex {
 	public:
 		QueueMutex() : m_locked(false) {};
 		~QueueMutex() {};
+		QueueMutex(QueueMutex&) = delete;
+		QueueMutex operator=(QueueMutex&) = delete;
 		/**
 		 * Lock the mutex. If the mutex is already taken then
 		 * we join the queue of threads waiting for the mutex.
@@ -30,6 +33,7 @@ class QueueMutex {
 				if (m_locked == false)
 				{
 					m_locked = true;
+					m_locker = std::this_thread::get_id();
 					return;
 				}
 				// Need to queue to wait for mutex
@@ -37,14 +41,15 @@ class QueueMutex {
 				bool myLock = false;
 				do {
 					m_cv.wait(guard);
-					if (m_queue.front() == std::this_thread::get_id())
+					if (m_locked == false &&
+						m_queue.front() == std::this_thread::get_id())
 					{
 						myLock = true;
 						m_queue.pop();
 					}
 				} while (myLock == false);
 				m_locked = true;
-
+				m_locker = std::this_thread::get_id();
 			};
 		/**
 		 * Unlock the mutex and notify any waiting threads the mutex is
@@ -52,16 +57,25 @@ class QueueMutex {
 		 */
 		void	unlock()
 			{
-				std::lock_guard<std::mutex> guard(m_guard);
+				if (m_locked == false)
+				{
+					Logger::getLogger()->error("Call to unlock when the lock is not locked");
+				}
+				if (m_locker != std::this_thread::get_id())
+				{
+					Logger::getLogger()->error("Call to unlock from a thread other than the one that locked it");
+				}
+				std::unique_lock<std::mutex> guard(m_guard);
 				m_locked = false;
 				m_cv.notify_all();
-			}
+			};
 	private:
 		std::mutex		m_guard;
 		std::condition_variable	m_cv;
 		bool			m_locked;
 		std::queue<std::thread::id>
 					m_queue;
+		std::thread::id		m_locker;
 
 };
 #endif
