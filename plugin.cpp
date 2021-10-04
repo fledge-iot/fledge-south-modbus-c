@@ -62,7 +62,12 @@ using namespace std;
 			  ]					\
 		})
 
-const char *def_cfg = QUOTE({
+#define CONTROL_MAP	QUOTE({					\
+		"values" : [					\
+			  ]					\
+		})
+
+static const char *def_cfg = QUOTE({
 		"plugin" : {
 			"description" : "Modbus TCP and RTU C south plugin",
 			"type" : "string",
@@ -163,6 +168,22 @@ const char *def_cfg = QUOTE({
 			"order": "12",
 			"displayName": "Timeout",
 			"validity" : "protocol == \"TCP\""
+			},
+		"control" : {
+			"description" : "Modbus request timeout",
+			"type" : "enumeration",
+			"default" : "None",
+			"order": "13",
+			"options" : [ "None", "Use Register Map", "Use Control Map" ],
+			"displayName": "Control"
+			},
+		"controlmap" : {
+			"description" : "Modbus control register map",
+			"order": "14",
+			"displayName": "Control Map", 
+			"type" : "JSON",
+			"default" : CONTROL_MAP,
+			"validity" : "control == \"Use Control Map\""
 			}
 		});
 
@@ -177,7 +198,7 @@ extern "C" {
 static PLUGIN_INFORMATION info = {
 	"modbus",                 // Name
 	VERSION,                  // Version
-	0,    			  // Flags
+	SP_CONTROL, 		  // Flags
 	PLUGIN_TYPE_SOUTH,        // Type
 	"2.0.0",                  // Interface version
 	def_cfg			  // Default configuration
@@ -244,5 +265,25 @@ Modbus *modbus = (Modbus *)handle;
 	if (!handle)
 		throw runtime_error("Bad plugin handle");
 	delete modbus;
+}
+
+/**
+ * Setpoint control write operation
+ */
+bool plugin_write(PLUGIN_HANDLE *handle, string name, string value)
+{
+Modbus *modbus = (Modbus *)handle;
+
+	if (!handle)
+		return false;
+	return modbus->write(name, value);
+}
+
+/**
+ * Setpoint control operation. None are supported by Modbus
+ */
+bool plugin_operation(PLUGIN_HANDLE *handle, string operation, int parameterCount, PLUGIN_PARAMETER parameters[])
+{
+	return false;
 }
 };

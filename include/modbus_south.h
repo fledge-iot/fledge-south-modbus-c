@@ -16,6 +16,7 @@
 #include <vector>
 #include <map>
 #include <mutex>
+#include <queueMutex.h>
 
 #define ITEM_TYPE_FLOAT			0x0001
 #define ITEM_SWAP_BYTES			0x0002
@@ -28,6 +29,7 @@
 #define RECONNECT_LIMIT			2	// Max reconnect attempts before failing a reading cycle
 
 typedef enum { MODBUS_COIL, MODBUS_INPUT, MODBUS_REGISTER, MODBUS_INPUT_REGISTER } ModbusSource;
+typedef enum { NoControlMap, UseRegisterMap, UseControlMap } ModbusControlSource;
 
 /**
  * The Modbus class.
@@ -41,6 +43,7 @@ class Modbus {
 		~Modbus();
 		void				configure(ConfigCategory *config);
 		std::vector<Reading *>		*takeReading();
+		bool				write(const std::string& name, const std::string& value);
 	private:
 		class		RegisterMap;
 		class		ModbusEntity;
@@ -70,6 +73,7 @@ class Modbus {
 		void		addModbusValue(std::vector<Reading *> *readings, const std::string& assetName, Datapoint *datapoint);
 		void		optimise();
 		void 		addCache(ModbusSource source, int slaveID, int first, int last);
+		ModbusEntity	*createEntity(const rapidjson::Value& value);
 
 		/**
 		 * A class to implement a register map entry needed to map one or more modbus
@@ -131,6 +135,7 @@ class Modbus {
 				std::string	getAssetName() { return m_map->m_assetName; };
 				virtual ModbusSource	getSource() = 0;
 				RegisterMap		*getMap() { return m_map; };
+				virtual bool		write(modbus_t *modbus, const std::string& value) = 0;
 			protected:
 				virtual DatapointValue	*readItem(modbus_t *modbus) = 0;
 				RegisterMap	*m_map;
@@ -147,6 +152,7 @@ class Modbus {
 				virtual ~ModbusCoil() {};
 				DatapointValue	*readItem(modbus_t *modbus);
 				ModbusSource	getSource() { return MODBUS_COIL; };
+				bool		write(modbus_t *modbus, const std::string& value);
 		};
 
 		/**
@@ -158,6 +164,7 @@ class Modbus {
 				virtual ~ModbusInputBits() {};
 				DatapointValue	*readItem(modbus_t *modbus);
 				ModbusSource	getSource() { return MODBUS_INPUT; };
+				bool		write(modbus_t *modbus, const std::string& value);
 		};
 
 		/**
@@ -169,6 +176,7 @@ class Modbus {
 				virtual ~ModbusRegister() {};
 				DatapointValue	*readItem(modbus_t *modbus);
 				ModbusSource	getSource() { return MODBUS_REGISTER; };
+				bool		write(modbus_t *modbus, const std::string& value);
 		};
 
 		/**
@@ -180,6 +188,7 @@ class Modbus {
 				virtual ~ModbusInputRegister() {};
 				DatapointValue	*readItem(modbus_t *modbus);
 				ModbusSource	getSource() { return MODBUS_INPUT_REGISTER; };
+				bool		write(modbus_t *modbus, const std::string& value);
 		};
 
 		modbus_t			*m_modbus;
@@ -197,12 +206,15 @@ class Modbus {
 		bool				m_tcp;
 		bool				m_connected;
 		int				m_defaultSlave;
-		std::mutex			m_configMutex;
+		QueueMutex			m_configMutex;
 		RegisterMap			*m_lastItem;
 		int				m_errcount;
 		float				m_timeout;
-
-
+		std::map<std::string, ModbusEntity *>
+						m_writeMap;
+		ModbusControlSource		m_control;
+		unsigned int			m_connectCount;
+		unsigned int			m_disconnectCount;
 };
 
 /**

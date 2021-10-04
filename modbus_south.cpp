@@ -14,6 +14,16 @@
 #include <string.h>
 #include <modbus/modbus-version.h>
 
+#define INSTRUMENT_IO		0	// Enabl instrusmentation of IO and mutex
+#define INSTIO_THRESHOLD	5
+
+#if INSTRUMENT_IO
+static const char *mutexHolders[] = { "None", "Config", "Read", "Write", "Destructor" };
+static enum {
+	HolderNone = 0, HolderConfig, HolderRead, HolderWrite, HolderDestructor
+} mutexHolder;
+#endif
+
 /**
  * Set debug mode in the underlying modbus context. Set to
  * 1 to enable debug or zero to disable it.
@@ -33,7 +43,7 @@ using namespace std;
  */
 Modbus::Modbus() : m_modbus(0), m_tcp(false), m_port(0), m_device(""),
 	m_baud(0), m_bits(0), m_stopBits(0), m_parity('E'), m_errcount(0),
-	m_timeout(0.5)
+	m_timeout(0.5), m_connectCount(0), m_disconnectCount(0)
 {
 }
 
@@ -42,9 +52,13 @@ Modbus::Modbus() : m_modbus(0), m_tcp(false), m_port(0), m_device(""),
  */
 Modbus::~Modbus()
 {
-	lock_guard<mutex> guard(m_configMutex);
+	m_configMutex.lock();
+#if INSTRUMENT_IO
+	mutexHolder = HolderDestructor;
+#endif
 	removeMap();
 	modbus_free(m_modbus);
+	m_configMutex.unlock();
 }
 
 /**
@@ -91,6 +105,7 @@ void Modbus::createModbus()
 	modbus_set_debug(m_modbus, true);
 #endif
 	errno = 0;
+	m_connectCount++;
 	if (modbus_connect(m_modbus) == -1)
 	{
 		Logger::getLogger()->error("Failed to connect to Modbus %s server %s, %s", (m_tcp ? "TCP" : "RTU"),
@@ -124,428 +139,713 @@ string	device, address;
 bool	recreate = false;
 Logger	*log = Logger::getLogger();
 
-	lock_guard<mutex> guard(m_configMutex);
-	if (config->itemExists("protocol"))
-	{
-		string proto = config->getValue("protocol");
-		if (!proto.compare("TCP"))
+	m_configMutex.lock();
+	try {
+#if INSTRUMENT_IO
+		mutexHolder = HolderConfig;
+#endif
+		if (config->itemExists("protocol"))
 		{
-			if (!m_tcp)
+			string proto = config->getValue("protocol");
+			if (!proto.compare("TCP"))
 			{
-				recreate = true;
-				m_tcp = true;
-			}
-			if (config->itemExists("address"))
-			{
-				address = config->getValue("address");
-				if (address.compare(m_address))
+				if (!m_tcp)
 				{
-					m_address = address;
 					recreate = true;
+					m_tcp = true;
 				}
-				if (! address.empty())		// Not empty
+				if (config->itemExists("address"))
 				{
-					unsigned short port = 502;
-					if (config->itemExists("port"))
+					address = config->getValue("address");
+					if (address.compare(m_address))
 					{
-						string value = config->getValue("port");
-						int port = (unsigned short)atoi(value.c_str());
-						if (m_port != port)
+						m_address = address;
+						recreate = true;
+					}
+					if (! address.empty())		// Not empty
+					{
+						unsigned short port = 502;
+						if (config->itemExists("port"))
 						{
-							m_port = port;
-							recreate = true;
+							string value = config->getValue("port");
+							int port = (unsigned short)atoi(value.c_str());
+							if (m_port != port)
+							{
+								m_port = port;
+								recreate = true;
+							}
 						}
 					}
 				}
-			}
-			if (config->itemExists("timeout"))
-			{
-				m_timeout = strtod(config->getValue("timeout").c_str(), NULL);
-			}
+				if (config->itemExists("timeout"))
+				{
+					m_timeout = strtod(config->getValue("timeout").c_str(), NULL);
+				}
 
-		}
-		else if (!proto.compare("RTU"))
-		{
-			if (m_tcp)
-			{
-				recreate = true;
-				m_tcp = false;
 			}
-			if (config->itemExists("device"))
+			else if (!proto.compare("RTU"))
 			{
-				device = config->getValue("device");
-				int baud = 9600;
-				char parity = 'N';
-				int bits = 8;
-				int stopBits = 1;
-				if (config->itemExists("baud"))
+				if (m_tcp)
 				{
-					string value = config->getValue("baud");
-					baud = atoi(value.c_str());
+					recreate = true;
+					m_tcp = false;
 				}
-				if (config->itemExists("parity"))
+				if (config->itemExists("device"))
 				{
-					string value = config->getValue("parity");
-					if (value.compare("even") == 0)
+					device = config->getValue("device");
+					int baud = 9600;
+					char parity = 'N';
+					int bits = 8;
+					int stopBits = 1;
+					if (config->itemExists("baud"))
 					{
-						parity = 'E';
+						string value = config->getValue("baud");
+						baud = atoi(value.c_str());
 					}
-					else if (value.compare("odd") == 0)
+					if (config->itemExists("parity"))
 					{
-						parity = 'O';
+						string value = config->getValue("parity");
+						if (value.compare("even") == 0)
+						{
+							parity = 'E';
+						}
+						else if (value.compare("odd") == 0)
+						{
+							parity = 'O';
+						}
+						else if (value.compare("none") == 0)
+						{
+							parity = 'N';
+						}
 					}
-					else if (value.compare("none") == 0)
+					if (config->itemExists("bits"))
 					{
-						parity = 'N';
+						string value = config->getValue("bits");
+						bits = atoi(value.c_str());
+					}
+					if (config->itemExists("stopBits"))
+					{
+						string value = config->getValue("stopBits");
+						stopBits = atoi(value.c_str());
+					}
+					if (m_device.compare(device) != 0)
+					{
+						m_device = device;
+						recreate = true;
+					}
+					if (m_baud != baud)
+					{
+						m_baud = baud;
+						recreate = true;
+					}
+					if (m_parity != parity)
+					{
+						m_parity = parity;
+						recreate = true;
+					}
+					if (m_bits != bits)
+					{
+						m_bits = bits;
+						recreate = true;
+					}
+					if (m_stopBits != stopBits)
+					{
+						m_stopBits = stopBits;
+						recreate = true;
 					}
 				}
-				if (config->itemExists("bits"))
+			}
+			else
+			{
+				Logger::getLogger()->fatal("Modbus must specify either RTU or TCP as protocol");
+			}
+		}
+		else
+		{
+			Logger::getLogger()->fatal("Modbus missing protocol specification");
+			throw runtime_error("Unable to determine modbus protocol");
+		}
+		
+		if (recreate)
+		{
+			createModbus();
+		}
+
+		if (config->itemExists("slave"))
+		{
+			setDefaultSlave(atoi(config->getValue("slave").c_str()));
+		}
+
+		if (config->itemExists("asset"))
+		{
+			setAssetName(config->getValue("asset"));
+		}
+		else
+		{
+			setAssetName("modbus");
+		}
+
+		string control = config->getValue("control");
+		if (control.compare("None") == 0)
+		{
+			m_control = NoControlMap;
+		}
+		else if (control.compare("Use Register Map") == 0)
+		{
+			m_control = UseRegisterMap;
+		}
+		else if (control.compare("Use Control Map") == 0)
+		{
+			m_control = UseControlMap;
+		}
+
+		/*
+		 * Remove any previous map
+		 */
+		removeMap();
+
+		// Now process the Modbus regster map
+		string map = config->getValue("map");
+		rapidjson::Document doc;
+		doc.Parse(map.c_str());
+		if (!doc.HasParseError())
+		{
+			if (doc.HasMember("values") && doc["values"].IsArray())
+			{
+				int errorCount = 0;
+				const rapidjson::Value& values = doc["values"];
+				for (rapidjson::Value::ConstValueIterator itr = values.Begin();
+							itr != values.End(); ++itr)
 				{
-					string value = config->getValue("bits");
-					bits = atoi(value.c_str());
+					int rCount = 0;
+					int slaveID = getDefaultSlave();
+					float scale = 1.0;
+					float offset = 0.0;
+					string name = "";
+					string assetName = "";
+					if (itr->HasMember("slave"))
+					{
+						if (! (*itr)["slave"].IsInt())
+						{
+							log->error("The value of slave in the modbus map should be an integer");
+							errorCount++;
+						}
+						else
+						{
+							slaveID = (*itr)["slave"].GetInt();
+						}
+					}
+					if (itr->HasMember("name"))
+					{
+						if ((*itr)["name"].IsString())
+						{
+							name = (*itr)["name"].GetString();
+						}
+						else
+						{
+							log->error("The value of name in the modbus map should be a string");
+							errorCount++;
+						}
+					}
+					else
+					{
+						log->error("Each item in the modbus map must have a name property");
+						errorCount++;
+						continue;
+					}
+					if (itr->HasMember("assetName"))
+					{
+						if ((*itr)["assetName"].IsString())
+						{
+							assetName = (*itr)["assetName"].GetString();
+						}
+						else
+						{
+							log->error("The value of assetName in the %s modbus map should be a string", name.c_str());
+							errorCount++;
+						}
+					}
+					if (itr->HasMember("scale"))
+					{
+						if (! (*itr)["scale"].IsNumber())
+						{
+							log->error("The value of scale in the %s modbus map should be a floating point number", name.c_str());
+							errorCount++;
+						}
+						else
+						{
+							scale = (*itr)["scale"].GetFloat();
+						}
+					}
+					if (itr->HasMember("offset"))
+					{
+						if (! (*itr)["offset"].IsNumber())
+						{
+							log->error("The value of offset in the %s modbus map should be a floating point number", name.c_str());
+							errorCount++;
+						}
+						else
+						{
+							offset = (*itr)["offset"].GetFloat();
+						}
+					}
+					if (itr->HasMember("coil"))
+					{
+						rCount++;
+						if (! (*itr)["coil"].IsNumber())
+						{
+							log->error("The value of coil in the %s modbus map should be a number", name.c_str());
+							errorCount++;
+						}
+						else
+						{
+							int coil = (*itr)["coil"].GetInt();
+							addToMap(slaveID, new ModbusCoil(slaveID, createRegisterMap(assetName, name, coil, scale, offset)));
+						}
+					}
+					if (itr->HasMember("input"))
+					{
+						rCount++;
+						if ((*itr)["input"].IsInt())
+						{
+							int input = (*itr)["input"].GetInt();
+							addToMap(slaveID, new ModbusInputBits(slaveID, createRegisterMap(assetName, name, input, scale, offset)));
+						}
+						else
+						{
+							log->error("The input item in the %s modbus map must be either an integer", name.c_str());
+							errorCount++;
+						}
+					}
+					if (itr->HasMember("register"))
+					{
+						rCount++;
+						if ((*itr)["register"].IsInt())
+						{
+							int regNo = (*itr)["register"].GetInt();
+							addToMap(slaveID, new ModbusRegister(slaveID, createRegisterMap(assetName, name, regNo, scale, offset)));
+						}
+						else if ((*itr)["register"].IsArray())
+						{
+							vector<unsigned int>	words;
+							for (rapidjson::Value::ConstValueIterator itr2 = (*itr)["register"].Begin();
+								itr2 != (*itr)["register"].End(); ++itr2)
+							{
+								if (itr2->IsInt())
+								{
+									words.push_back(itr2->GetInt());
+								}
+								else
+								{
+									log->error("The modbus map %s register array must contain integer values", name.c_str());
+									errorCount++;
+								}
+							}
+							addToMap(slaveID, new ModbusRegister(slaveID, createRegisterMap(assetName, name, words, scale, offset)));
+						}
+						else
+						{
+							log->error("The input item in the %s modbus map must be either an integer or an array", name.c_str());
+							errorCount++;
+						}
+					}
+					if (itr->HasMember("inputRegister"))
+					{
+						rCount++;
+						if ((*itr)["inputRegister"].IsInt())
+						{
+							int regNo = (*itr)["inputRegister"].GetInt();
+							addToMap(slaveID, new ModbusInputRegister(slaveID, createRegisterMap(assetName, name, regNo, scale, offset)));
+						}
+						else if ((*itr)["inputRegister"].IsArray())
+						{
+							vector<unsigned int>	words;
+							for (rapidjson::Value::ConstValueIterator itr2 = (*itr)["inputRegister"].Begin();
+								itr2 != (*itr)["inputRegister"].End(); ++itr2)
+							{
+								if (itr2->IsInt())
+								{
+									words.push_back(itr2->GetInt());
+								}
+								else
+								{
+									log->error("The %s modbus map input register array must contain integer values", name.c_str());
+									errorCount++;
+								}
+							}
+							addToMap(slaveID, new ModbusInputRegister(slaveID, createRegisterMap(assetName, name, words, scale, offset)));
+						}
+						else
+						{
+							log->error("The input item in the %s modbus map must be either an integer or an array", name.c_str());
+							errorCount++;
+						}
+					}
+					// Now deal with flags for the item we have just added
+					if (itr->HasMember("type"))
+					{
+						if ((*itr)["type"].IsString())
+						{
+							string type = (*itr)["type"].GetString();
+							if (type.compare("float") == 0)
+							{
+								m_lastItem->setFlag(ITEM_TYPE_FLOAT);
+							}
+						}
+						else
+						{
+							log->error("The type property of %s must be a string", name.c_str());
+						}
+					}
+					if (itr->HasMember("swap"))
+					{
+						if ((*itr)["swap"].IsString())
+						{
+							string swap =  (*itr)["swap"].GetString();
+							if (swap.compare("bytes") == 0)
+							{
+								m_lastItem->setFlag(ITEM_SWAP_BYTES);
+							}
+							else if (swap.compare("words") == 0)
+							{
+								m_lastItem->setFlag(ITEM_SWAP_WORDS);
+							}
+							else if (swap.compare("both") == 0)
+							{
+								m_lastItem->setFlag(ITEM_SWAP_BYTES|ITEM_SWAP_WORDS);
+							}
+							else
+							{
+							log->error("The swap property of %s must be one of bytes, words or both", name.c_str());
+							}
+						}
+						else
+						{
+							log->error("The swap property of %s must be a string", name.c_str());
+						}
+					}
+					if (rCount == 0)
+					{
+						log->error("%s in map must have one of coil, input, register or inputRegister properties", name.c_str());
+						errorCount++;
+					}
+					else if (rCount > 1)
+					{
+						log->error("%s in map must only have one of coil, input, register or inputRegister properties", name.c_str());
+						errorCount++;
+					}
 				}
-				if (config->itemExists("stopBits"))
+				if (errorCount)
 				{
-					string value = config->getValue("stopBits");
-					stopBits = atoi(value.c_str());
+					log->error("%d errors encountered in the modbus map", errorCount);
 				}
-				if (m_device.compare(device) != 0)
+			}
+			if (doc.HasMember("coils") && doc["coils"].IsObject())
+			{
+				for (rapidjson::Value::ConstMemberIterator itr = doc["coils"].MemberBegin();
+							itr != doc["coils"].MemberEnd(); ++itr)
 				{
-					m_device = device;
-					recreate = true;
+					addToMap(new ModbusCoil(m_defaultSlave, createRegisterMap(itr->name.GetString(), itr->value.GetUint())));
 				}
-				if (m_baud != baud)
+			}
+			if (doc.HasMember("inputs") && doc["inputs"].IsObject())
+			{
+				for (rapidjson::Value::ConstMemberIterator itr = doc["inputs"].MemberBegin();
+							itr != doc["inputs"].MemberEnd(); ++itr)
 				{
-					m_baud = baud;
-					recreate = true;
+					addToMap(new ModbusInputBits(m_defaultSlave, createRegisterMap(itr->name.GetString(), itr->value.GetUint())));
 				}
-				if (m_parity != parity)
+			}
+			if (doc.HasMember("registers") && doc["registers"].IsObject())
+			{
+				for (rapidjson::Value::ConstMemberIterator itr = doc["registers"].MemberBegin();
+							itr != doc["registers"].MemberEnd(); ++itr)
 				{
-					m_parity = parity;
-					recreate = true;
+					addToMap(new ModbusRegister(m_defaultSlave, createRegisterMap(itr->name.GetString(), itr->value.GetUint())));
 				}
-				if (m_bits != bits)
+			}
+			if (doc.HasMember("inputRegisters") && doc["inputRegisters"].IsObject())
+			{
+				for (rapidjson::Value::ConstMemberIterator itr = doc["inputRegisters"].MemberBegin();
+							itr != doc["inputRegisters"].MemberEnd(); ++itr)
 				{
-					m_bits = bits;
-					recreate = true;
-				}
-				if (m_stopBits != stopBits)
-				{
-					m_stopBits = stopBits;
-					recreate = true;
+					addToMap(new ModbusInputRegister(m_defaultSlave, createRegisterMap(itr->name.GetString(), itr->value.GetUint())));
 				}
 			}
 		}
 		else
 		{
-			Logger::getLogger()->fatal("Modbus must specify either RTU or TCP as protocol");
+			log->error("Parse error in modbus map, the map must be a valid JSON object");
+		}
+
+
+		// Now process the Modbus control map if there is one
+		if (m_control == UseControlMap)
+		{
+			string map = config->getValue("controlmap");
+			rapidjson::Document doc;
+			doc.Parse(map.c_str());
+			if (!doc.HasParseError())
+			{
+				if (doc.HasMember("values") && doc["values"].IsArray())
+				{
+					int errorCount = 0;
+					const rapidjson::Value& values = doc["values"];
+					for (rapidjson::Value::ConstValueIterator itr = values.Begin();
+								itr != values.End(); ++itr)
+					{
+						ModbusEntity *entity = createEntity(*itr);
+						string name = entity->getMap()->m_name;
+						m_writeMap.insert(pair<string, Modbus::ModbusEntity *>(name, entity));
+					}
+				}
+			}
+			else
+			{
+				log->error("Parse error in modbus map, the map must be a valid JSON object");
+			}
+		}
+
+		optimise();
+	} catch (...) {
+		m_configMutex.unlock();
+		throw;
+	}
+	m_configMutex.unlock();
+}
+
+/**
+ * Create a ModbusEntity from the values in the JSON configuration
+ * item for that entity
+ *
+ * @param item	The set of key/value pairs for the item
+ * @return The new ModbusEntity or null on error
+ */
+Modbus::ModbusEntity *Modbus::createEntity(const rapidjson::Value& item)
+{
+int rCount = 0;
+int slaveID = getDefaultSlave();
+float scale = 1.0;
+float offset = 0.0;
+string name = "";
+string assetName = "";
+ModbusEntity *rval = NULL;
+Logger *log = Logger::getLogger();
+int errorCount = 0;
+
+	if (item.HasMember("slave"))
+	{
+		if (! item["slave"].IsInt())
+		{
+			log->error("The value of slave in the modbus map should be an integer");
+			errorCount++;
+		}
+		else
+		{
+			slaveID = item["slave"].GetInt();
+		}
+	}
+	if (item.HasMember("name"))
+	{
+		if (item["name"].IsString())
+		{
+			name = item["name"].GetString();
+		}
+		else
+		{
+			log->error("The value of name in the modbus map should be a string");
+			errorCount++;
 		}
 	}
 	else
 	{
-		Logger::getLogger()->fatal("Modbus missing protocol specification");
-		throw runtime_error("Unable to determine modbus protocol");
+		log->error("Each item in the modbus map must have a name property");
+		errorCount++;
+		return rval;
 	}
-	
-	if (recreate)
+	if (item.HasMember("assetName"))
 	{
-		createModbus();
-	}
-
-	if (config->itemExists("slave"))
-	{
-		setDefaultSlave(atoi(config->getValue("slave").c_str()));
-	}
-
-	if (config->itemExists("asset"))
-	{
-		setAssetName(config->getValue("asset"));
-	}
-	else
-	{
-		setAssetName("modbus");
-	}
-
-	/*
-	 * Remove any previous map
-	 */
-	removeMap();
-
-	// Now process the Modbus regster map
-	string map = config->getValue("map");
-	rapidjson::Document doc;
-	doc.Parse(map.c_str());
-	if (!doc.HasParseError())
-	{
-		if (doc.HasMember("values") && doc["values"].IsArray())
+		if (item["assetName"].IsString())
 		{
-			int errorCount = 0;
-			const rapidjson::Value& values = doc["values"];
-			for (rapidjson::Value::ConstValueIterator itr = values.Begin();
-						itr != values.End(); ++itr)
+			assetName = item["assetName"].GetString();
+		}
+		else
+		{
+			log->error("The value of assetName in the %s modbus map should be a string", name.c_str());
+			errorCount++;
+		}
+	}
+	if (item.HasMember("scale"))
+	{
+		if (! item["scale"].IsNumber())
+		{
+			log->error("The value of scale in the %s modbus map should be a floating point number", name.c_str());
+			errorCount++;
+		}
+		else
+		{
+			scale = item["scale"].GetFloat();
+		}
+	}
+	if (item.HasMember("offset"))
+	{
+		if (! item["offset"].IsNumber())
+		{
+			log->error("The value of offset in the %s modbus map should be a floating point number", name.c_str());
+			errorCount++;
+		}
+		else
+		{
+			offset = item["offset"].GetFloat();
+		}
+	}
+	if (item.HasMember("coil"))
+	{
+		rCount++;
+		if (! item["coil"].IsNumber())
+		{
+			log->error("The value of coil in the %s modbus map should be a number", name.c_str());
+			errorCount++;
+		}
+		else
+		{
+			int coil = item["coil"].GetInt();
+			rval = new ModbusCoil(slaveID, createRegisterMap(assetName, name, coil, scale, offset));
+		}
+	}
+	if (item.HasMember("input"))
+	{
+		rCount++;
+		if (item["input"].IsInt())
+		{
+			int input = item["input"].GetInt();
+			rval = new ModbusInputBits(slaveID, createRegisterMap(assetName, name, input, scale, offset));
+		}
+		else
+		{
+			log->error("The input item in the %s modbus map must be either an integer", name.c_str());
+			errorCount++;
+		}
+	}
+	if (item.HasMember("register"))
+	{
+		rCount++;
+		if (item["register"].IsInt())
+		{
+			int regNo = item["register"].GetInt();
+			rval =  new ModbusRegister(slaveID, createRegisterMap(assetName, name, regNo, scale, offset));
+		}
+		else if (item["register"].IsArray())
+		{
+			vector<unsigned int>	words;
+			for (rapidjson::Value::ConstValueIterator item2 = item["register"].Begin();
+				item2 != item["register"].End(); ++item2)
 			{
-				int rCount = 0;
-				int slaveID = getDefaultSlave();
-				float scale = 1.0;
-				float offset = 0.0;
-				string name = "";
-				string assetName = "";
-				if (itr->HasMember("slave"))
+				if (item2->IsInt())
 				{
-					if (! (*itr)["slave"].IsInt())
-					{
-						log->error("The value of slave in the modbus map should be an integer");
-						errorCount++;
-					}
-					else
-					{
-						slaveID = (*itr)["slave"].GetInt();
-					}
-				}
-				if (itr->HasMember("name"))
-				{
-					if ((*itr)["name"].IsString())
-					{
-						name = (*itr)["name"].GetString();
-					}
-					else
-					{
-						log->error("The value of name in the modbus map should be a string");
-						errorCount++;
-					}
+					words.push_back(item2->GetInt());
 				}
 				else
 				{
-					log->error("Each item in the modbus map must have a name property");
-					errorCount++;
-					continue;
-				}
-				if (itr->HasMember("assetName"))
-				{
-					if ((*itr)["assetName"].IsString())
-					{
-						assetName = (*itr)["assetName"].GetString();
-					}
-					else
-					{
-						log->error("The value of assetName in the %s modbus map should be a string", name.c_str());
-						errorCount++;
-					}
-				}
-				if (itr->HasMember("scale"))
-				{
-					if (! (*itr)["scale"].IsNumber())
-					{
-						log->error("The value of scale in the %s modbus map should be a floating point number", name.c_str());
-						errorCount++;
-					}
-					else
-					{
-						scale = (*itr)["scale"].GetFloat();
-					}
-				}
-				if (itr->HasMember("offset"))
-				{
-					if (! (*itr)["offset"].IsNumber())
-					{
-						log->error("The value of offset in the %s modbus map should be a floating point number", name.c_str());
-						errorCount++;
-					}
-					else
-					{
-						offset = (*itr)["offset"].GetFloat();
-					}
-				}
-				if (itr->HasMember("coil"))
-				{
-					rCount++;
-					if (! (*itr)["coil"].IsNumber())
-					{
-						log->error("The value of coil in the %s modbus map should be a number", name.c_str());
-						errorCount++;
-					}
-					else
-					{
-						int coil = (*itr)["coil"].GetInt();
-						addToMap(slaveID, new ModbusCoil(slaveID, createRegisterMap(assetName, name, coil, scale, offset)));
-					}
-				}
-				if (itr->HasMember("input"))
-				{
-					rCount++;
-					if ((*itr)["input"].IsInt())
-					{
-						int input = (*itr)["input"].GetInt();
-						addToMap(slaveID, new ModbusInputBits(slaveID, createRegisterMap(assetName, name, input, scale, offset)));
-					}
-					else
-					{
-						log->error("The input item in the %s modbus map must be either an integer", name.c_str());
-						errorCount++;
-					}
-				}
-				if (itr->HasMember("register"))
-				{
-					rCount++;
-					if ((*itr)["register"].IsInt())
-					{
-						int regNo = (*itr)["register"].GetInt();
-						addToMap(slaveID, new ModbusRegister(slaveID, createRegisterMap(assetName, name, regNo, scale, offset)));
-					}
-					else if ((*itr)["register"].IsArray())
-					{
-						vector<unsigned int>	words;
-						for (rapidjson::Value::ConstValueIterator itr2 = (*itr)["register"].Begin();
-							itr2 != (*itr)["register"].End(); ++itr2)
-						{
-							if (itr2->IsInt())
-							{
-								words.push_back(itr2->GetInt());
-							}
-							else
-							{
-								log->error("The modbus map %s register array must contain integer values", name.c_str());
-								errorCount++;
-							}
-						}
-						addToMap(slaveID, new ModbusRegister(slaveID, createRegisterMap(assetName, name, words, scale, offset)));
-					}
-					else
-					{
-						log->error("The input item in the %s modbus map must be either an integer or an array", name.c_str());
-						errorCount++;
-					}
-				}
-				if (itr->HasMember("inputRegister"))
-				{
-					rCount++;
-					if ((*itr)["inputRegister"].IsInt())
-					{
-						int regNo = (*itr)["inputRegister"].GetInt();
-						addToMap(slaveID, new ModbusInputRegister(slaveID, createRegisterMap(assetName, name, regNo, scale, offset)));
-					}
-					else if ((*itr)["inputRegister"].IsArray())
-					{
-						vector<unsigned int>	words;
-						for (rapidjson::Value::ConstValueIterator itr2 = (*itr)["inputRegister"].Begin();
-							itr2 != (*itr)["inputRegister"].End(); ++itr2)
-						{
-							if (itr2->IsInt())
-							{
-								words.push_back(itr2->GetInt());
-							}
-							else
-							{
-								log->error("The %s modbus map input register array must contain integer values", name.c_str());
-								errorCount++;
-							}
-						}
-						addToMap(slaveID, new ModbusInputRegister(slaveID, createRegisterMap(assetName, name, words, scale, offset)));
-					}
-					else
-					{
-						log->error("The input item in the %s modbus map must be either an integer or an array", name.c_str());
-						errorCount++;
-					}
-				}
-				// Now deal with flags for the item we have just added
-				if (itr->HasMember("type"))
-				{
-					if ((*itr)["type"].IsString())
-					{
-						string type = (*itr)["type"].GetString();
-						if (type.compare("float") == 0)
-						{
-							m_lastItem->setFlag(ITEM_TYPE_FLOAT);
-						}
-					}
-					else
-					{
-						log->error("The type property of %s must be a string", name.c_str());
-					}
-				}
-				if (itr->HasMember("swap"))
-				{
-					if ((*itr)["swap"].IsString())
-					{
-						string swap =  (*itr)["swap"].GetString();
-						if (swap.compare("bytes") == 0)
-						{
-							m_lastItem->setFlag(ITEM_SWAP_BYTES);
-						}
-						else if (swap.compare("words") == 0)
-						{
-							m_lastItem->setFlag(ITEM_SWAP_WORDS);
-						}
-						else if (swap.compare("both") == 0)
-						{
-							m_lastItem->setFlag(ITEM_SWAP_BYTES|ITEM_SWAP_WORDS);
-						}
-						else
-						{
-						log->error("The swap property of %s must be one of bytes, words or both", name.c_str());
-						}
-					}
-					else
-					{
-						log->error("The swap property of %s must be a string", name.c_str());
-					}
-				}
-				if (rCount == 0)
-				{
-					log->error("%s in map must have one of coil, input, register or inputRegister properties", name.c_str());
-					errorCount++;
-				}
-				else if (rCount > 1)
-				{
-					log->error("%s in map must only have one of coil, input, register or inputRegister properties", name.c_str());
+					log->error("The modbus map %s register array must contain integer values", name.c_str());
 					errorCount++;
 				}
 			}
-			if (errorCount)
-			{
-				log->error("%d errors encountered in the modbus map", errorCount);
-			}
+			rval = new ModbusRegister(slaveID, createRegisterMap(assetName, name, words, scale, offset));
 		}
-		if (doc.HasMember("coils") && doc["coils"].IsObject())
+		else
 		{
-			for (rapidjson::Value::ConstMemberIterator itr = doc["coils"].MemberBegin();
-						itr != doc["coils"].MemberEnd(); ++itr)
-			{
-				addToMap(new ModbusCoil(m_defaultSlave, createRegisterMap(itr->name.GetString(), itr->value.GetUint())));
-			}
-		}
-		if (doc.HasMember("inputs") && doc["inputs"].IsObject())
-		{
-			for (rapidjson::Value::ConstMemberIterator itr = doc["inputs"].MemberBegin();
-						itr != doc["inputs"].MemberEnd(); ++itr)
-			{
-				addToMap(new ModbusInputBits(m_defaultSlave, createRegisterMap(itr->name.GetString(), itr->value.GetUint())));
-			}
-		}
-		if (doc.HasMember("registers") && doc["registers"].IsObject())
-		{
-			for (rapidjson::Value::ConstMemberIterator itr = doc["registers"].MemberBegin();
-						itr != doc["registers"].MemberEnd(); ++itr)
-			{
-				addToMap(new ModbusRegister(m_defaultSlave, createRegisterMap(itr->name.GetString(), itr->value.GetUint())));
-			}
-		}
-		if (doc.HasMember("inputRegisters") && doc["inputRegisters"].IsObject())
-		{
-			for (rapidjson::Value::ConstMemberIterator itr = doc["inputRegisters"].MemberBegin();
-						itr != doc["inputRegisters"].MemberEnd(); ++itr)
-			{
-				addToMap(new ModbusInputRegister(m_defaultSlave, createRegisterMap(itr->name.GetString(), itr->value.GetUint())));
-			}
+			log->error("The input item in the %s modbus map must be either an integer or an array", name.c_str());
+			errorCount++;
 		}
 	}
-	else
+	if (item.HasMember("inputRegister"))
 	{
-		log->error("Parse error in modbus map, the map must be a valid JSON object");
+		rCount++;
+		if (item["inputRegister"].IsInt())
+		{
+			int regNo = item["inputRegister"].GetInt();
+			rval = new ModbusInputRegister(slaveID, createRegisterMap(assetName, name, regNo, scale, offset));
+		}
+		else if (item["inputRegister"].IsArray())
+		{
+			vector<unsigned int>	words;
+			for (rapidjson::Value::ConstValueIterator item2 = item["inputRegister"].Begin();
+				item2 != item["inputRegister"].End(); ++item2)
+			{
+				if (item2->IsInt())
+				{
+					words.push_back(item2->GetInt());
+				}
+				else
+				{
+					log->error("The %s modbus map input register array must contain integer values", name.c_str());
+					errorCount++;
+				}
+			}
+			rval =  new ModbusInputRegister(slaveID, createRegisterMap(assetName, name, words, scale, offset));
+		}
+		else
+		{
+			log->error("The input item in the %s modbus map must be either an integer or an array", name.c_str());
+			errorCount++;
+		}
+	}
+	// Now deal with flags for the item we have just added
+	if (item.HasMember("type"))
+	{
+		if (item["type"].IsString())
+		{
+			string type = item["type"].GetString();
+			if (type.compare("float") == 0)
+			{
+				m_lastItem->setFlag(ITEM_TYPE_FLOAT);
+			}
+		}
+		else
+		{
+			log->error("The type property of %s must be a string", name.c_str());
+		}
+	}
+	if (item.HasMember("swap"))
+	{
+		if (item["swap"].IsString())
+		{
+			string swap =  item["swap"].GetString();
+			if (swap.compare("bytes") == 0)
+			{
+				m_lastItem->setFlag(ITEM_SWAP_BYTES);
+			}
+			else if (swap.compare("words") == 0)
+			{
+				m_lastItem->setFlag(ITEM_SWAP_WORDS);
+			}
+			else if (swap.compare("both") == 0)
+			{
+				m_lastItem->setFlag(ITEM_SWAP_BYTES|ITEM_SWAP_WORDS);
+			}
+			else
+			{
+			log->error("The swap property of %s must be one of bytes, words or both", name.c_str());
+			}
+		}
+		else
+		{
+			log->error("The swap property of %s must be a string", name.c_str());
+		}
+	}
+	if (rCount == 0)
+	{
+		log->error("%s in map must have one of coil, input, register or inputRegister properties", name.c_str());
+		errorCount++;
+	}
+	else if (rCount > 1)
+	{
+		log->error("%s in map must only have one of coil, input, register or inputRegister properties", name.c_str());
+		errorCount++;
 	}
 
-	optimise();
+	return rval;
 }
 
 /**
@@ -663,6 +963,12 @@ RegisterMap		*map = entity->getMap();
 		m_map.insert(pair<int, vector<Modbus::ModbusEntity *> >(slave, empty));
 		m_map[slave].push_back(entity);
 	}
+
+	if (m_control == UseRegisterMap)
+	{
+		string name = map->m_name;
+		m_writeMap.insert(pair<string, Modbus::ModbusEntity *>(name, entity));
+	}
 }
 
 /**
@@ -679,6 +985,13 @@ Modbus::removeMap()
 		}
 		it->second.clear();
 	}
+	if (m_control == UseControlMap)
+	{
+	}
+	else if (m_control == UseRegisterMap)
+	{
+		m_writeMap.clear();
+	}
 }
 
 
@@ -690,147 +1003,257 @@ vector<Reading *>	*Modbus::takeReading()
 vector<Reading *>	*values = new vector<Reading *>();
 ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 int			reconnects = 0;
+#if INSTRUMENT_IO
+	time_t	t1, t2, t3;
+	t1 = time(0);
+#endif
 
-	lock_guard<mutex> guard(m_configMutex);
-	if (!m_modbus)
-	{
-		createModbus();
-	}
-	if (!m_connected)
-	{
-		errno = 0;
-		if (modbus_connect(m_modbus) == -1)
+	m_configMutex.lock();
+	try {
+#if INSTRUMENT_IO
+		t2 = time(0);
+		if (t2 - t1 > INSTIO_THRESHOLD)
 		{
-			Logger::getLogger()->error("Failed to connect to Modbus device %s: %s",
-				(m_tcp ? m_address.c_str() : m_device.c_str()), modbus_strerror(errno));
-			return values;
+			Logger::getLogger()->warn("Long wait for mutex, previusly held by %s",
+					mutexHolders[mutexHolder]);
 		}
-		m_connected = true;
-	}
-
-	manager->populateCaches(m_modbus);
-
-	for (auto it = m_map.cbegin(); it != m_map.cend(); it++)
-	{
-		setSlave(it->first);
-		for (int i = 0; i < it->second.size(); i++)
+		mutexHolder = HolderRead;
+#endif
+		if (!m_modbus)
 		{
-			int retryCount = 0;
-retry:
-			if (retryCount > 10)
+			createModbus();
+		}
+		if (!m_connected)
+		{
+			errno = 0;
+			m_connectCount++;
+			if (modbus_connect(m_modbus) == -1)
 			{
-				Logger::getLogger()->error("Excessive retries to read modbus, aborting");
+				Logger::getLogger()->error("Failed to connect to Modbus device %s: %s",
+					(m_tcp ? m_address.c_str() : m_device.c_str()), modbus_strerror(errno));
+#if INSTRUMENT_IO
+				t3 = time(0);
+				if (t3 - t1 > INSTIO_THRESHOLD)
+				{
+					Logger::getLogger()->warn("Long read operation, failed connection. Time to get mutex %d, time to complete %d", t2 - t1, t3 - t1);
+				}
+#endif
+				m_configMutex.unlock();
 				return values;
 			}
-			Datapoint *dp = it->second[i]->read(m_modbus);
-			if (dp)
+			m_connected = true;
+		}
+
+		manager->populateCaches(m_modbus);
+
+#if INSTRUMENT_IO
+		int itemCount = 0, tryCount = 0;
+#endif
+		for (auto it = m_map.cbegin(); it != m_map.cend(); it++)
+		{
+			setSlave(it->first);
+			for (int i = 0; i < it->second.size(); i++)
 			{
-				m_errcount = 0;
-				addModbusValue(values, it->second[i]->getAssetName(), dp);
-			}
-			else if (errno == EPIPE)
-			{
-				Logger::getLogger()->warn("Modbus connection lost, re-establishing the connection");
-				m_connected = false;
-				if (modbus_connect(m_modbus) == -1)
+				int retryCount = 0;
+#if INSTRUMENT_IO
+				itemCount++;
+	retry:
+				tryCount++;
+#else
+	retry:
+#endif
+				if (retryCount > 10)
 				{
-					Logger::getLogger()->error("Failed to connect to Modbus device %s: %s",
-						(m_tcp ? m_address.c_str() : m_device.c_str()), modbus_strerror(errno));
+#if INSTRUMENT_IO
+					t3 = time(0);
+					if (t3 - t1 > INSTIO_THRESHOLD)
+					{
+						Logger::getLogger()->warn("Long read operation, excessive retries. Time to get mutex %d, time to complete %d", t2 - t1, t3 - t1);
+					}
+#endif
+					Logger::getLogger()->error("Excessive retries to read modbus, aborting");
+					m_configMutex.unlock();
 					return values;
 				}
-				m_connected = true;
-				m_errcount = 0;
-				retryCount++;
-				goto retry;
-			}
-			else if (errno == EINVAL)
-			{
-				modbus_close(m_modbus);
-				Logger::getLogger()->warn("Modbus invalid error, closing and re-establishing the connection");
-				m_connected = false;
-				if (modbus_connect(m_modbus) == -1)
+				Datapoint *dp = it->second[i]->read(m_modbus);
+				if (dp)
 				{
-					Logger::getLogger()->error("Failed to connect to Modbus device %s: %s",
-						(m_tcp ? m_address.c_str() : m_device.c_str()), modbus_strerror(errno));
-					return values;
+					m_errcount = 0;
+					addModbusValue(values, it->second[i]->getAssetName(), dp);
 				}
-				m_connected = true;
-				m_errcount = 0;
-				retryCount++;
-				goto retry;
-			}
-			else if (errno == ECONNRESET)
-			{
-				modbus_close(m_modbus);
-				Logger::getLogger()->warn("Modbus connection reset by peer, closing and re-establishing the connection");
-				m_connected = false;
-				if (modbus_connect(m_modbus) == -1)
+				else if (errno == EPIPE)
 				{
-					Logger::getLogger()->error("Failed to connect to Modbus device %s: %s",
-						(m_tcp ? m_address.c_str() : m_device.c_str()), modbus_strerror(errno));
-					return values;
+					Logger::getLogger()->warn("Modbus connection lost, re-establishing the connection");
+					m_connected = false;
+					m_connectCount++;
+					if (modbus_connect(m_modbus) == -1)
+					{
+						Logger::getLogger()->error("Failed to connect to Modbus device %s: %s",
+							(m_tcp ? m_address.c_str() : m_device.c_str()), modbus_strerror(errno));
+#if INSTRUMENT_IO
+						t3 = time(0);
+						if (t3 - t1 > INSTIO_THRESHOLD)
+						{
+							Logger::getLogger()->warn("Long read operation, failed connection 2. Time to get mutex %d, time to complete %d", t2 - t1, t3 - t1);
+						}
+#endif
+						m_configMutex.unlock();
+						return values;
+					}
+					m_connected = true;
+					m_errcount = 0;
+					retryCount++;
+					goto retry;
 				}
-				m_connected = true;
-				m_errcount = 0;
-				retryCount++;
-				goto retry;
-			}
-			else if (errno == EMBBADDATA)
-			{
-				modbus_close(m_modbus);
-				Logger::getLogger()->warn("Incorrect data response from modbus slave, closing and re-establishing the connection");
-				m_connected = false;
-				if (modbus_connect(m_modbus) == -1)
+				else if (errno == EINVAL)
 				{
-					Logger::getLogger()->error("Failed to connect to Modbus device %s: %s",
-						(m_tcp ? m_address.c_str() : m_device.c_str()), modbus_strerror(errno));
-					return values;
+					m_disconnectCount++;
+					modbus_close(m_modbus);
+					Logger::getLogger()->warn("Modbus invalid error, closing and re-establishing the connection");
+					m_connected = false;
+					m_connectCount++;
+					if (modbus_connect(m_modbus) == -1)
+					{
+						Logger::getLogger()->error("Failed to connect to Modbus device %s: %s",
+							(m_tcp ? m_address.c_str() : m_device.c_str()), modbus_strerror(errno));
+						m_configMutex.unlock();
+						return values;
+					}
+					m_connected = true;
+					m_errcount = 0;
+					retryCount++;
+					goto retry;
 				}
-				m_connected = true;
-				m_errcount = 0;
-				retryCount++;
-				goto retry;
-			}
-			else
-			{
-				Logger::getLogger()->warn("Failed with error '%s', errorcount %d", modbus_strerror(errno), m_errcount);
-				modbus_close(m_modbus);
-				m_connected = false;
-				if (modbus_connect(m_modbus) == -1)
+				else if (errno == ECONNRESET)
 				{
-					Logger::getLogger()->error("Failed to connect to Modbus device %s: %s",
-						(m_tcp ? m_address.c_str() : m_device.c_str()), modbus_strerror(errno));
-					return values;
+					m_disconnectCount++;
+					modbus_close(m_modbus);
+					Logger::getLogger()->warn("Modbus connection reset by peer, closing and re-establishing the connection");
+					m_connected = false;
+					m_connectCount++;
+					if (modbus_connect(m_modbus) == -1)
+					{
+						Logger::getLogger()->error("Failed to connect to Modbus device %s: %s",
+							(m_tcp ? m_address.c_str() : m_device.c_str()), modbus_strerror(errno));
+						m_configMutex.unlock();
+						return values;
+					}
+					m_connected = true;
+					m_errcount = 0;
+					retryCount++;
+					goto retry;
 				}
-				m_connected = true;
-				m_errcount++;
-			}
-			if (m_errcount > ERR_THRESHOLD)
-			{
-				if (reconnects++ > RECONNECT_LIMIT)
+				else if (errno == EMBBADDATA)
 				{
-					Logger::getLogger()->error("Persistant failure of Modbus reads - abprting readng cycle");
-					values->clear();
-					delete values;
-					return NULL;
+					m_disconnectCount++;
+					modbus_close(m_modbus);
+					Logger::getLogger()->warn("Incorrect data response from modbus slave, closing and re-establishing the connection");
+					m_connected = false;
+					m_connectCount++;
+					if (modbus_connect(m_modbus) == -1)
+					{
+						Logger::getLogger()->error("Failed to connect to Modbus device %s: %s",
+							(m_tcp ? m_address.c_str() : m_device.c_str()), modbus_strerror(errno));
+#if INSTRUMENT_IO
+						t3 = time(0);
+						if (t3 - t1 > INSTIO_THRESHOLD)
+						{
+							Logger::getLogger()->warn("Long read operation, failed reconnecting. Time to get mutex %d, time to complete %d", t2 - t1, t3 - t1);
+						}
+#endif
+						m_configMutex.unlock();
+						return values;
+					}
+					m_connected = true;
+					m_errcount = 0;
+					retryCount++;
+					goto retry;
 				}
-				Logger::getLogger()->warn("Modbus excessive failures, closing and re-establishing the connection");
-				modbus_close(m_modbus);
-				m_connected = false;
-				if (modbus_connect(m_modbus) == -1)
+				else
 				{
-					Logger::getLogger()->error("Failed to connect to Modbus device %s: %s",
-						(m_tcp ? m_address.c_str() : m_device.c_str()), modbus_strerror(errno));
-					return values;
+					Logger::getLogger()->warn("Failed with error '%s', errorcount %d", modbus_strerror(errno), m_errcount);
+					m_disconnectCount++;
+					modbus_close(m_modbus);
+					m_connected = false;
+					m_connectCount++;
+					if (modbus_connect(m_modbus) == -1)
+					{
+						Logger::getLogger()->error("Failed to connect to Modbus device %s: %s",
+							(m_tcp ? m_address.c_str() : m_device.c_str()), modbus_strerror(errno));
+#if INSTRUMENT_IO
+						t3 = time(0);
+						if (t3 - t1 > INSTIO_THRESHOLD)
+						{
+							Logger::getLogger()->warn("Long read operation, indeterminent failure. Time to get mutex %d, time to complete %d", t2 - t1, t3 - t1);
+						}
+#endif
+						m_configMutex.unlock();
+						return values;
+					}
+					m_connected = true;
+					m_errcount++;
 				}
-				m_connected = true;
-				m_errcount = 0;
-				goto retry;
+				if (m_errcount > ERR_THRESHOLD)
+				{
+					if (reconnects++ > RECONNECT_LIMIT)
+					{
+						Logger::getLogger()->error("Persistant failure of Modbus reads - aborting readng cycle");
+						values->clear();
+						delete values;
+#if INSTRUMENT_IO
+						t3 = time(0);
+						if (t3 - t1 > INSTIO_THRESHOLD)
+						{
+							Logger::getLogger()->warn("Long read operation, persistant failure. Time to get mutex %d, time to complete %d", t2 - t1, t3 - t1);
+						}
+#endif
+						m_configMutex.unlock();
+						return NULL;
+					}
+					Logger::getLogger()->warn("Modbus excessive failures, closing and re-establishing the connection");
+					m_disconnectCount++;
+					modbus_close(m_modbus);
+					m_connected = false;
+					m_connectCount++;
+					if (modbus_connect(m_modbus) == -1)
+					{
+						Logger::getLogger()->error("Failed to connect to Modbus device %s: %s",
+							(m_tcp ? m_address.c_str() : m_device.c_str()), modbus_strerror(errno));
+#if INSTRUMENT_IO
+						t3 = time(0);
+						if (t3 - t1 > INSTIO_THRESHOLD)
+						{
+							Logger::getLogger()->warn("Long read operation, connection failure 3. Time to get mutex %d, time to complete %d", t2 - t1, t3 - t1);
+						}
+#endif
+						m_configMutex.unlock();
+						return values;
+					}
+					m_connected = true;
+					m_errcount = 0;
+					goto retry;
+				}
 			}
 		}
-	}
 
-	return values;
+#if INSTRUMENT_IO
+		t3 = time(0);
+		if (t3 - t1 > INSTIO_THRESHOLD)
+		{
+			Logger::getLogger()->warn("Long read operation. Time to get mutex %d, time to complete %d", t2 - t1, t3 - t1);
+		}
+		if (itemCount != tryCount)
+		{
+			Logger::getLogger()->warn("%d operations were required to read %d items",
+					tryCount, itemCount);
+		}
+#endif
+		m_configMutex.unlock();
+		return values;
+	} catch (...) {
+		m_configMutex.unlock();
+		throw;
+	}
 }
 
 /**
@@ -893,7 +1316,7 @@ double Modbus::RegisterMap::round(double value, int bits)
  * Optimise the modbus interactions so we fetch a large block of registers
  * or holding registers in a single interaction rather than one at a time.
  *
- * We only apply this optimisation to maos that use the latest mapping
+ * We only apply this optimisation to maps that use the latest mapping
  * specification.
  */
 void Modbus::optimise()
@@ -964,6 +1387,21 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 }
 
 /**
+ * Write operation on a modbus coil
+ */
+bool Modbus::ModbusCoil::write(modbus_t *modbus, const string& strValue)
+{
+	Logger::getLogger()->debug("Modbus write coil with '%s'", strValue.c_str());
+	int state = strtol(strValue.c_str(), NULL, 10);
+	if (modbus_write_bit(modbus, m_map->m_registerNo, state) != 1)
+	{
+		Logger::getLogger()->error("Modbus write of coil %d failed, %s", m_map->m_registerNo, modbus_strerror(errno));
+		return false;
+	}
+	return true;
+}
+
+/**
  * Read a modbus input bits
  *
  * @param modbus	The modbus connection
@@ -994,6 +1432,14 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 	return value;
 }
 
+/**
+ * Write operation on a modbus inpout bits
+ */
+bool Modbus::ModbusInputBits::write(modbus_t *modbus, const string& strValue)
+{
+	Logger::getLogger()->error("Attempt to write modbus input bits");
+	return false;
+}
 
 /**
  * Read a modbus register
@@ -1086,6 +1532,139 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 	return value;
 }
 
+/**
+ * Write operation on a modbus register
+ */
+bool Modbus::ModbusRegister::write(modbus_t *modbus, const string& strValue)
+{
+long			value;
+int			rc;
+
+	errno = 0;
+	if (m_map->m_isVector)
+	{
+		if (m_map->m_flags & ITEM_TYPE_FLOAT)
+		{
+			union {
+				uint32_t	ival;
+				float		fval;
+			} data;
+			data.fval = strtod(strValue.c_str(), NULL);
+			data.fval = m_map->m_offset + (data.fval * m_map->m_scale);
+			value = data.ival;
+		}
+		else
+		{
+			value = strtol(strValue.c_str(), NULL, 10);
+			double dvalue  = (value / m_map->m_scale) - m_map->m_offset;
+			value = m_map->round(dvalue, 16);
+		}
+		if (m_map->m_flags & ITEM_SWAP_BYTES)
+		{
+			unsigned long odd = value & 0x00ff00ff;
+			unsigned long even = value & 0xff00ff00;
+			value = (odd << 8) | (even >> 8);
+		}
+		if (m_map->m_flags & ITEM_SWAP_WORDS)
+		{
+			unsigned long odd = value & 0xffff;
+			unsigned long even = value & 0xffff0000;
+			value = (odd << 16) | (even >> 16);
+		}
+		bool failure = false;
+		// Attempt to do a single write if the vector is contiguous
+		bool ascending = true, descending = true;
+		int prev = m_map->m_registers[0];
+		for (int i = 1; i < m_map->m_registers.size(); i++)
+		{
+			int cur = m_map->m_registers[i];
+			if (cur != prev + 1)
+				ascending = false;
+			if (cur != prev - 1)
+				descending = false;
+			prev = cur;
+		}
+		if (ascending)
+		{
+			size_t	registers = m_map->m_registers.size();
+			uint16_t *data = (uint16_t *)malloc(registers * sizeof(uint16_t));
+			if (data)
+			{
+				for (int i = 0; i < registers; i++)
+				{
+					data[i] = (value >> (16 * i)) & 0xffff;
+				}
+				if ((rc = modbus_write_registers(modbus, m_map->m_registers[0], registers, data)) == -1)
+				{
+					Logger::getLogger()->error("Modbus write registers failed, %s.", modbus_strerror(errno));
+					return false;
+				}
+				else
+				{
+					free(data);
+					return true;
+				}
+			}
+		}
+		else if (descending)
+		{
+			size_t	registers = m_map->m_registers.size();
+			uint16_t *data = (uint16_t *)malloc(registers * sizeof(uint16_t));
+			int regNo = m_map->m_registers[registers-1];
+			if (data)
+			{
+				for (int i = registers - 1; i >= 0; i--)
+				{
+					data[i] = (value >> (16 * i)) & 0xffff;
+				}
+				if ((rc = modbus_write_registers(modbus, regNo, registers, data)) == -1)
+				{
+					Logger::getLogger()->error("Modbus write registers failed, %s.", modbus_strerror(errno));
+					return false;
+				}
+				else
+				{
+					free(data);
+					return true;
+				}
+			}
+		}
+		else
+		{
+			for (int a = 0; a < m_map->m_registers.size(); a++)
+			{
+				uint16_t val = value & 0xffff;
+				if ((rc = modbus_write_register(modbus, m_map->m_registers[a], val)) == 1)
+				{
+					value >>= 16;
+				}
+				else
+				{
+					Logger::getLogger()->error("Modbus write register %d failed, %s.", m_map->m_registers[a], modbus_strerror(errno));
+					return false;
+					
+				}
+			}
+		}
+		if (failure)
+		{
+			return false;
+		}
+	}
+	else
+	{
+		value = strtol(strValue.c_str(), NULL, 10);
+		double dvalue  = (value / m_map->m_scale) - m_map->m_offset;
+		value = m_map->round(dvalue, 16);
+		if ((rc = modbus_write_register(modbus, m_map->m_registerNo, value)) != 1)
+		{
+			Logger::getLogger()->error("Modbus write register %d failed to write value %d, %s", m_map->m_registerNo, value, modbus_strerror(errno));
+			return false;
+		}
+	}
+	return true;
+}
+
 
 /**
  * Read a modbus input register
@@ -1176,4 +1755,72 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 		return NULL;
 	}
 	return value;
+}
+
+/**
+ * Write operaiton on an input register
+ *
+ */
+bool Modbus::ModbusInputRegister::write(modbus_t *modbus, const string& value)
+{
+	Logger::getLogger()->error("Attempt to write to a modbus input register");
+	return false;
+}
+
+
+/**
+ * Setpoint write operation
+ *
+ * @param name	Name of the parameter to write
+ * @param value	Value to write to the parameter
+ * @return True if the operations was succesful, otherwise false
+ */
+bool Modbus::write(const string& name, const string& value)
+{
+#if INSTRUMENT_IO
+	time_t	t1, t2, t3;
+	t1 = time(0);
+#endif
+	m_configMutex.lock();
+	try {
+#if INSTRUMENT_IO
+		t2 = time(0);
+		if (t2 - t1 > INSTIO_THRESHOLD)
+		{
+			Logger::getLogger()->warn("Long wait for mutex, previusly held by %s",
+					mutexHolders[mutexHolder]);
+		}
+		mutexHolder = HolderWrite;
+#endif
+		Logger::getLogger()->debug("Modbus write '%s' with '%s'", name.c_str(), value.c_str());
+		auto res = m_writeMap.find(name);
+		if (res	!= m_writeMap.end())
+		{
+			ModbusEntity *entity = res->second;
+			bool rval = entity->write(m_modbus, value);
+#if INSTRUMENT_IO
+			t3 = time(0);
+			if (t3 - t1 > INSTIO_THRESHOLD)
+			{
+				Logger::getLogger()->warn("Long write operation. Time to get mutex %d, time to complete %d", t2 - t1, t3 - t1);
+			}
+#endif
+			m_configMutex.unlock();
+			return rval;
+		}
+		Logger::getLogger()->error("Modbus write operation unable to locate map entry for '%s'", name.c_str());
+#if INSTRUMENT_IO
+		t3 = time(0);
+		if (t3 - t1 > INSTIO_THRESHOLD)
+		{
+			Logger::getLogger()->warn("Long write failed operation. Time to get mutex %d, time to complete %d", t2 - t1, t3 - t1);
+		}
+#endif
+		m_configMutex.unlock();
+		return false;
+	}
+	catch (...) {
+		m_configMutex.unlock();
+		throw;
+	}
 }

@@ -270,6 +270,9 @@ void ModbusCacheManager::SlaveCache::RegisterRanges::addRegister(int registerNo)
 {
 bool done = false;
 
+Logger *log = Logger::getLogger();
+
+	log->info("Add register %d", registerNo);
 	// First deal with extending the start of a range
 	map<int,int>::iterator it = m_ranges.find(registerNo + 1);
 	if (it != m_ranges.end())
@@ -278,15 +281,24 @@ bool done = false;
 		m_ranges.erase(it);
 		done = true;
 		m_ranges.insert(pair<int, int>(registerNo, last));
+		log->info("Add to start of range %d -> %d", registerNo, last);
 	}
 	else
 	{
+		log->info("Looking for range x -> %d", registerNo - 1);
 		// Deal with the easy case of extending the end of a range
 		for (map<int,int>::iterator it = m_ranges.begin(); it != m_ranges.end(); it++)
 		{
 			if (it->second == registerNo - 1)
 			{
+				log->info("Add to end of range %d -> %d", it->first, it->second);
 				it->second = registerNo;
+				done = true;
+				break;
+			}
+			else if (registerNo >= it->first && registerNo <= it->second)
+			{
+				log->info("%d already in cache %d -> %d", registerNo, it->first, it->second);
 				done = true;
 				break;
 			}
@@ -308,6 +320,7 @@ bool done = false;
 				}
 				if (it1->second + 1 == it2->first)
 				{
+					log->info("Combined range %d -> %d and %d -> %d", it1->first, it1->second, it2->first, it2->second);
 					it1->second = it2->second;
 					m_ranges.erase(it2);
 					combined = true;
@@ -320,6 +333,7 @@ bool done = false;
 	{
 		// Simply add a new range
 		m_ranges.insert(pair<int, int>(registerNo, registerNo));
+		log->info("Insert new range %d -> %d", registerNo, registerNo);
 	}
 }
 
