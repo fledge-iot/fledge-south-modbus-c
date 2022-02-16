@@ -52,13 +52,13 @@ A Modbus south service is added in the same way as any other south service in Fl
 
     - **Timeout**: The request timeout when communicating with a Modbus TCP client. This can be used to increase the timeout when a slow Modbus device or network is used.
 
-    - **Control**: Which register map should be used for mapping control entities to modebus registers.
+    - **Control**: Which register map should be used for mapping control entities to modbus registers.
 
       +------------+
       | |modbus_2| |
       +------------+
 
-      If no control is required then this may be set to *None*. Setting this to *Use Register Map* will cause all the registers that are being rad to also be targets for control. Setting this to *Use Control Map* will case the serperate *Control Map* to be used to map the control set points to modbus registers.
+      If no control is required then this may be set to *None*. Setting this to *Use Register Map* will cause all the registers that are being rad to also be targets for control. Setting this to *Use Control Map* will case the separate *Control Map* to be used to map the control set points to modbus registers.
 
     - *Control Map*: The register map that is used to map the set point names into Modbus registers for the purpose of set point control. The control map is the same JSON format document as the register map and uses the same set of properties.
 
@@ -175,10 +175,27 @@ The Modbus Map for this example would be as follow:
 
 Since none of these values have an assetName defined all there values will be stored in a single asset, the name of which is the default asset name defined for the plugin as a whole. This asset will have three data points within it; *temperature*, *speed* and *active*.
 
+Function Codes
+~~~~~~~~~~~~~~
+
+The *fledge-south-modbus-c* plugin attempts to make as few calls as possible to the underlying modbus device in order to collect the data. This is done in order to minimise the load that is placed on the modbus server. The modbus function codes used to read each coil or register type are as follows;
+
++------------------+----------------------------+---------+---------------+---------------+
+| Object Type      | Function Code              | Size    | Address Space | Map Property  |
++==================+============================+=========+===============+===============+
+| Coil             | 01 Read Coils              | 1 bit   | 00001 - 09999 | coil          |
++------------------+----------------------------+---------+---------------+---------------+
+| Discrete Input   | 02 Read Discrete inputs    | 1 bit   | 10001 - 19999 | input         |
++------------------+----------------------------+---------+---------------+---------------+
+| Input Register   | 04 Read register           | 16 bits | 30001 - 39999 | inputRegister |
++------------------+----------------------------+---------+---------------+---------------+
+| Holding Register | 16 Read multiple registers | 16 bits | 40001 - 49999 | register      |
++------------------+----------------------------+---------+---------------+---------------+
+
 Set Point Control
 -----------------
 
-The *fledge-south-modbus-c* plugin supports the Fledge set point control mechanisms and allows a register map to be defined that maps the set point attributes to the underlyign modbus registers. As an example a control map as follows
+The *fledge-south-modbus-c* plugin supports the Fledge set point control mechanisms and allows a register map to be defined that maps the set point attributes to the underlying modbus registers. As an example a control map as follows
 
 .. code-block:: JSON
 
@@ -191,8 +208,8 @@ The *fledge-south-modbus-c* plugin supports the Fledge set point control mechani
          ]
    }
 
-Defines that a set point write operation can be instigated agisnt the set point named *active* and this will map to the Modbus coil 1.
+Defines that a set point write operation can be instigated against the set point named *active* and this will map to the Modbus coil 1.
 
 Set points may be defined for Modbus coils and registers, the rad only input bits and input registers can not be used for set point control.
 
-The *Control Map* can use the same swapping, scaling and offset properties as modbus *Register Map*, it can also map multiple registers to a single set point and flaotign point values.
+The *Control Map* can use the same swapping, scaling and offset properties as modbus *Register Map*, it can also map multiple registers to a single set point and floating point values.
