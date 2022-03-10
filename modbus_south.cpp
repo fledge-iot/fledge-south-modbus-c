@@ -490,6 +490,14 @@ Logger	*log = Logger::getLogger();
 							if (type.compare("float") == 0)
 							{
 								m_lastItem->setFlag(ITEM_TYPE_FLOAT);
+							} 
+							else if (type.compare("BCD") == 0)
+							{
+								m_lastItem->setFlag(ITEM_TYPE_BCD);
+							}
+							else if (type.compare("DBCD") == 0)
+							{
+								m_lastItem->setFlag(ITEM_TYPE_DBCD);
 							}
 						}
 						else
@@ -800,6 +808,14 @@ int errorCount = 0;
 			if (type.compare("float") == 0)
 			{
 				m_lastItem->setFlag(ITEM_TYPE_FLOAT);
+			}
+			else if (type.compare("BCD") == 0)
+			{
+				m_lastItem->setFlag(ITEM_TYPE_BCD);
+			}
+			else if (type.compare("DBCD") == 0)
+			{
+				m_lastItem->setFlag(ITEM_TYPE_DBCD);
 			}
 		}
 		else
@@ -1451,8 +1467,8 @@ DatapointValue *
 Modbus::ModbusRegister::readItem(modbus_t *modbus)
 {
 DatapointValue		*value = NULL;
-uint16_t		regValue;
-int			rc;
+uint16_t			regValue;
+int					rc;
 ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 
 	errno = 0;
@@ -1502,6 +1518,43 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 			} data;
 			data.ival = (uint32_t)regValue;
 			double finalValue = m_map->m_offset + (data.fval * m_map->m_scale);
+			value = new DatapointValue(finalValue);
+		}
+		else if (m_map->m_flags & ITEM_TYPE_BCD) // BCD type format - 16 bit Binary Coded Decimal
+		{
+			//split regValue into nibbles
+			unsigned int nibble1 = (regValue & 0x000f);
+			unsigned int nibble2 = (regValue & 0x00f0) * 10;
+			unsigned int nibble3 = (regValue & 0x0f00) * 100;
+			unsigned int nibble4 = (regValue & 0xf000) * 1000;
+
+			//combine nibbles
+			unsigned int decValue = nibble1 + nibble2 + nibble3 + nibble4;
+
+			//output decValue to be scaled
+			double finalValue = m_map->m_offset + (decValue * m_map->m_scale);
+            finalValue = m_map->round(finalValue, 8);
+			value = new DatapointValue(finalValue);
+
+		}
+		else if (m_map->m_flags & ITEM_TYPE_DBCD) // DBCD type format - 32 bit Binary Coded Decimal
+		{
+
+			//split regValue into nibbles
+			unsigned int nibble1 = (regValue & 0x0000000f);
+			unsigned int nibble2 = (regValue & 0x000000f0) * 10;
+			unsigned int nibble3 = (regValue & 0x00000f00) * 100;
+			unsigned int nibble4 = (regValue & 0x0000f000) * 1000;
+			unsigned int nibble5 = (regValue & 0x000f0000) * 10000;
+			unsigned int nibble6 = (regValue & 0x00f00000) * 100000;
+			unsigned int nibble7 = (regValue & 0x0f000000) * 1000000;
+			unsigned int nibble8 = (regValue & 0xf0000000) * 10000000;
+
+			//combine nibbles
+			unsigned int decValue = nibble1 + nibble2 + nibble3 + nibble4 + nibble5 + nibble6 + nibble7 + nibble8;
+
+			//output decValue to be scaled
+			double finalValue = m_map->m_offset + (decValue * m_map->m_scale);
 			value = new DatapointValue(finalValue);
 		}
 		else
