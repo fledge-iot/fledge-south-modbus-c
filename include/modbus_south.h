@@ -22,7 +22,7 @@
 #define ITEM_SWAP_BYTES			0x0002
 #define ITEM_SWAP_WORDS			0x0004
 #define ITEM_TYPE_BCD			0x0008
-#define ITEM_TYPE_DBCD			0x000a
+#define ITEM_TYPE_DBCD			0x0010
 
 #define CACHE_THRESHOLD			5	// The number of contiguous registers we need before we create a cache
 
