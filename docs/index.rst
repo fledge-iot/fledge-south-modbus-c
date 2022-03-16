@@ -114,10 +114,13 @@ The map is a JSON object with a single array *values*, each element of this arra
 +---------------+-------------------------------------------------------------------------+
 | offset        | An optional offset to add to the value read from the Modbus device.     |
 +---------------+-------------------------------------------------------------------------+
-| type          | This allows data to be cast to a different type. The only support type  |
-|               | currently is *float* and is used to interpret data read from the one or |
-|               | more of the 16 bit registers as a floating point value. This property   |
-|               | is optional.                                                            |
+| type          | This allows data to be cast to a different type. The currently          |
+|               | supported types are *float*, *BCD*, and *DBCD* which are used to        |
+|               | interpret data read from one or more of the 16 bit registers as a       |
+|               | floating point value, binary coded decimal, or double binary coded      |
+|               | decimal. The decimal location of BCD/DBCD types will use the 'scale'    |
+|               | property, otherwise, they will contain no decimal. This property is     |
+|               | optional.                                                               |
 +---------------+-------------------------------------------------------------------------+
 | swap          | This is an optional property used to byte swap values read from a       |
 |               | Modbus device. It may be set to one of *bytes*, *words* or *both* to    |
