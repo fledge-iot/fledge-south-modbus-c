@@ -1530,11 +1530,10 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 			unsigned int nibble4 = (regValue & 0xf000) * 1000;
 
 			//combine nibbles
-			unsigned int decValue = nibble1 + nibble2 + nibble3 + nibble4;
+			double decValue = nibble1 + nibble2 + nibble3 + nibble4;
 
 			//output decValue to be scaled
 			double finalValue = m_map->m_offset + (decValue * m_map->m_scale);
-			finalValue = m_map->round(finalValue, 16);
 			value = new DatapointValue(finalValue);
 
 		}
@@ -1552,11 +1551,10 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 			unsigned int nibble8 = (regValue & 0xf0000000) * 10000000;
 
 			//combine nibbles
-			unsigned int decValue = nibble1 + nibble2 + nibble3 + nibble4 + nibble5 + nibble6 + nibble7 + nibble8;
+			double decValue = nibble1 + nibble2 + nibble3 + nibble4 + nibble5 + nibble6 + nibble7 + nibble8;
 
 			//output decValue to be scaled
 			double finalValue = m_map->m_offset + (decValue * m_map->m_scale);
-			finalValue = m_map->round(finalValue, 32);
 			value = new DatapointValue(finalValue);
 		}
 		else
@@ -1581,7 +1579,6 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
         		regValue = nibble1 + nibble2 + nibble3 + nibble4;
 			}
 		double finalValue = m_map->m_offset + (regValue * m_map->m_scale);
-		finalValue = m_map->round(finalValue, 16);
 		value = new DatapointValue(finalValue);
 	}
 	else if ((rc = modbus_read_registers(modbus, m_map->m_registerNo, 1, &regValue)) == 1)
@@ -1598,7 +1595,6 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
         		regValue = nibble1 + nibble2 + nibble3 + nibble4;
 			}
 		double finalValue = m_map->m_offset + (regValue * m_map->m_scale);
-		finalValue = m_map->round(finalValue, 16);
 		value = new DatapointValue(finalValue);
 	}
 	else if (rc == -1)
@@ -1815,11 +1811,10 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 			unsigned int nibble4 = (regValue & 0xf000) * 1000;
 
 			//combine nibbles
-			unsigned int decValue = nibble1 + nibble2 + nibble3 + nibble4;
+			double decValue = nibble1 + nibble2 + nibble3 + nibble4;
 
 			//output decValue to be scaled
 			double finalValue = m_map->m_offset + (decValue * m_map->m_scale);
-			finalValue = m_map->round(finalValue, 16);
 			value = new DatapointValue(finalValue);
 
 		}
@@ -1837,11 +1832,10 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 			unsigned int nibble8 = (regValue & 0xf0000000) * 10000000;
 
 			//combine nibbles
-			unsigned int decValue = nibble1 + nibble2 + nibble3 + nibble4 + nibble5 + nibble6 + nibble7 + nibble8;
+			double decValue = nibble1 + nibble2 + nibble3 + nibble4 + nibble5 + nibble6 + nibble7 + nibble8;
 
 			//output decValue to be scaled
 			double finalValue = m_map->m_offset + (decValue * m_map->m_scale);
-			finalValue = m_map->round(finalValue, 32);
 			value = new DatapointValue(finalValue);
 		}		
 		else
@@ -1868,7 +1862,6 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 		}
 
 		double finalValue = m_map->m_offset + (regValue * m_map->m_scale);
-		finalValue = m_map->round(finalValue, 16);
 		value = new DatapointValue(finalValue);
 	}
 	else if ((rc = modbus_read_input_registers(modbus, m_map->m_registerNo, 1, &regValue)) == 1)
@@ -1885,7 +1878,6 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
         		regValue = nibble1 + nibble2 + nibble3 + nibble4;
 			}
 		double finalValue = m_map->m_offset + (regValue * m_map->m_scale);
-		finalValue = m_map->round(finalValue, 16);
 		value = new DatapointValue(finalValue);
 	}
 	else if (rc == -1)
