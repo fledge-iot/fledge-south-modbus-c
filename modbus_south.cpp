@@ -1499,7 +1499,6 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 			return NULL;
 		}
 		
-		Logger::getLogger()->error("Check 1:regValue is %d", regValue);
 
 		if (m_map->m_flags & ITEM_SWAP_BYTES)
 		{
@@ -1571,8 +1570,6 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 	{
 		regValue = manager->cachedValue(m_slave, MODBUS_REGISTER, m_map->m_registerNo);
 		double decValue;
-
-		Logger::getLogger()->error("Check 2:regValue is %d", regValue);
 
 			if (m_map->m_flags & ITEM_TYPE_BCD) // BCD type format - 16 bit Binary Coded Decimal
 			{	
