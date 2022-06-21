@@ -282,7 +282,7 @@ The value of register for item 'X' in the modbus map must be either an integer o
 
      "register" : 22
 
-  Or
+  Or, if two regsiters are being combined
 
   .. code-block:: JSON
 
@@ -302,7 +302,7 @@ The value of inputRegister for item 'X' in the modbus map must be either an inte
 
      "inputRegister" : 22
 
-  Or
+  Or, if two input registers are beign combined
 
   .. code-block:: JSON
 
