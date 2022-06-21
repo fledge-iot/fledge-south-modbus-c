@@ -302,7 +302,7 @@ The value of inputRegister for item 'X' in the modbus map must be either an inte
 
      "inputRegister" : 22
 
-  Or, if two input registers are beign combined
+  Or, if two input registers are being combined
 
   .. code-block:: JSON
 
