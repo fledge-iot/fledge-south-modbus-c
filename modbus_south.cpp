@@ -13,6 +13,8 @@
 #include <math.h>
 #include <string.h>
 #include <modbus/modbus-version.h>
+#include "rapidjson/error/error.h"
+#include "rapidjson/error/en.h"
 
 #define INSTRUMENT_IO		0	// Enabl instrusmentation of IO and mutex
 #define INSTIO_THRESHOLD	5
@@ -323,23 +325,12 @@ Logger	*log = Logger::getLogger();
 					float offset = 0.0;
 					string name = "";
 					string assetName = "";
-					if (itr->HasMember("slave"))
-					{
-						if (! (*itr)["slave"].IsInt())
-						{
-							log->error("The value of slave in the modbus map should be an integer");
-							errorCount++;
-						}
-						else
-						{
-							slaveID = (*itr)["slave"].GetInt();
-						}
-					}
 					if (itr->HasMember("name"))
 					{
 						if ((*itr)["name"].IsString())
 						{
 							name = (*itr)["name"].GetString();
+						
 						}
 						else
 						{
@@ -353,6 +344,18 @@ Logger	*log = Logger::getLogger();
 						errorCount++;
 						continue;
 					}
+					if (itr->HasMember("slave"))
+					{
+						if (! (*itr)["slave"].IsInt())
+						{
+							log->error("The value of slave for item '%s' in the modbus map should be an integer", name.c_str());
+							errorCount++;
+						}
+						else
+						{
+							slaveID = (*itr)["slave"].GetInt();
+						}
+					}
 					if (itr->HasMember("assetName"))
 					{
 						if ((*itr)["assetName"].IsString())
@@ -361,7 +364,7 @@ Logger	*log = Logger::getLogger();
 						}
 						else
 						{
-							log->error("The value of assetName in the %s modbus map should be a string", name.c_str());
+							log->error("The value of assetName for item '%s' in the modbus map should be a string", name.c_str());
 							errorCount++;
 						}
 					}
@@ -369,7 +372,7 @@ Logger	*log = Logger::getLogger();
 					{
 						if (! (*itr)["scale"].IsNumber())
 						{
-							log->error("The value of scale in the %s modbus map should be a floating point number", name.c_str());
+							log->error("The value of scale for item '%s' in the modbus map should be a floating point number", name.c_str());
 							errorCount++;
 						}
 						else
@@ -381,7 +384,7 @@ Logger	*log = Logger::getLogger();
 					{
 						if (! (*itr)["offset"].IsNumber())
 						{
-							log->error("The value of offset in the %s modbus map should be a floating point number", name.c_str());
+							log->error("The value of offset for item '%s' in the modbus map should be a floating point number", name.c_str());
 							errorCount++;
 						}
 						else
@@ -394,7 +397,7 @@ Logger	*log = Logger::getLogger();
 						rCount++;
 						if (! (*itr)["coil"].IsNumber())
 						{
-							log->error("The value of coil in the %s modbus map should be a number", name.c_str());
+							log->error("The value of coil for item '%s' in the modbus map should be a number", name.c_str());
 							errorCount++;
 						}
 						else
@@ -413,7 +416,7 @@ Logger	*log = Logger::getLogger();
 						}
 						else
 						{
-							log->error("The input item in the %s modbus map must be either an integer", name.c_str());
+							log->error("The value of input for item '%s' in the modbus map must be either an integer", name.c_str());
 							errorCount++;
 						}
 					}
@@ -437,7 +440,7 @@ Logger	*log = Logger::getLogger();
 								}
 								else
 								{
-									log->error("The modbus map %s register array must contain integer values", name.c_str());
+									log->error("The register array for item '%s' in the modbus map contain integer values", name.c_str());
 									errorCount++;
 								}
 							}
@@ -445,7 +448,7 @@ Logger	*log = Logger::getLogger();
 						}
 						else
 						{
-							log->error("The input item in the %s modbus map must be either an integer or an array", name.c_str());
+							log->error("The value of register for item '%s' in the modbus map must be either an integer or an array", name.c_str());
 							errorCount++;
 						}
 					}
@@ -469,7 +472,7 @@ Logger	*log = Logger::getLogger();
 								}
 								else
 								{
-									log->error("The %s modbus map input register array must contain integer values", name.c_str());
+									log->error("The value of inputRegister for item '%s' in the modbus map must be either an integer or an array", name.c_str());
 									errorCount++;
 								}
 							}
@@ -477,7 +480,7 @@ Logger	*log = Logger::getLogger();
 						}
 						else
 						{
-							log->error("The input item in the %s modbus map must be either an integer or an array", name.c_str());
+							log->error("The value of inputRegister for item '%s' in the modbus map must be either an integer or an array", name.c_str());
 							errorCount++;
 						}
 					}
@@ -491,10 +494,16 @@ Logger	*log = Logger::getLogger();
 							{
 								m_lastItem->setFlag(ITEM_TYPE_FLOAT);
 							}
+							else
+							{
+								log->error("The type property '%s' of the item '%s' in the modbus map is not supported", type.c_str(), name.c_str());
+								errorCount++;
+							}
 						}
 						else
 						{
-							log->error("The type property of %s must be a string", name.c_str());
+							log->error("The type property of the item '%s' in the modbus map must be a string", name.c_str());
+							errorCount++;
 						}
 					}
 					if (itr->HasMember("swap"))
@@ -516,22 +525,24 @@ Logger	*log = Logger::getLogger();
 							}
 							else
 							{
-							log->error("The swap property of %s must be one of bytes, words or both", name.c_str());
+								log->error("The swap property '%s' of item '%s' in the modbus map must be one of bytes, words or both", swap.c_str(), name.c_str());
+								errorCount++;
 							}
 						}
 						else
 						{
-							log->error("The swap property of %s must be a string", name.c_str());
+							log->error("The swap property of the item '%s' in the modbus map must be a string", name.c_str());
+							errorCount++;
 						}
 					}
 					if (rCount == 0)
 					{
-						log->error("%s in map must have one of coil, input, register or inputRegister properties", name.c_str());
+						log->error("Item '%s' in the modbus map must have one of coil, input, register or inputRegister properties", name.c_str());
 						errorCount++;
 					}
 					else if (rCount > 1)
 					{
-						log->error("%s in map must only have one of coil, input, register or inputRegister properties", name.c_str());
+						log->error("Item '%s' in the modbus map must only have one of coil, input, register or inputRegister properties", name.c_str());
 						errorCount++;
 					}
 				}
@@ -575,7 +586,8 @@ Logger	*log = Logger::getLogger();
 		}
 		else
 		{
-			log->error("Parse error in modbus map, the map must be a valid JSON object");
+			log->error("Parse error in modbus map, the map must be a valid JSON object. %s",
+					GetParseError_En(doc.GetParseError()));
 		}
 
 
@@ -602,7 +614,8 @@ Logger	*log = Logger::getLogger();
 			}
 			else
 			{
-				log->error("Parse error in modbus map, the map must be a valid JSON object");
+				log->error("Parse error in control modbus map, the map must be a valid JSON object. %s",
+						GetParseError_En(doc.GetParseError()));
 			}
 		}
 

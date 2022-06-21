@@ -213,3 +213,136 @@ Defines that a set point write operation can be instigated against the set point
 Set points may be defined for Modbus coils and registers, the rad only input bits and input registers can not be used for set point control.
 
 The *Control Map* can use the same swapping, scaling and offset properties as modbus *Register Map*, it can also map multiple registers to a single set point and floating point values.
+
+Error Messages
+--------------
+
+The following are messages that may be produced by the *fledge-south-modbus-c* plugin, these messages are written to the system log file and may be viewed by the *System* menu item in the Fledge user interface. This display may be filtered on the name of a particular south service in order to view just the messages that originate from that south service.
+
+The value of slave in the modbus map should be an integer
+  When a modbus slave identifier is defined within the JSON modbus map it should always be given as a integer value and should not be enclosed in quotes
+
+  .. code-block:: JSON
+
+     "slave" : 0
+
+The value of slave for item 'X' in the modbus map should be an integer
+  A name entity in the modbus map is defined as a string and must be enclosed in double quotes. This error would indicate that a non-string value has been given.
+
+  .. code-block:: JSON
+
+     "name" : "speed"
+
+Each item in the modbus map must have a name property
+  Each of the modbus entities that is read must define a name property for the entity.
+
+  .. code-block:: JSON
+
+     "name" : "speed"
+
+The value of assetName for item 'X' in the modbus map should be a string
+  The optional property *assetName* must always be provided as a string in the modbus map.
+
+  .. code-block:: JSON
+
+     "assetName" : "pumpSpeed"
+
+The value of scale for item 'X' in the modbus map should be a floating point number
+  The optional property *scale* must always be expressed as a numeric value in the JSON of the modbus map, and should not be enclosed in quotes.
+
+  .. code-block:: JSON
+
+     "scale" : 1.4
+
+The value of offset for item 'X' in the modbus map should be a floating point number
+  The optional property *offset* must always be given as a numeric value in the JSON definition of the modbus item, and should not be enclosed in quotes.
+
+  .. code-block:: JSON
+
+     "offset" : 2.0
+
+The value of coil for item 'X' in the modbus map should be a number
+  The coil number given in the modbus map of an item must be an integer number, and should not be enclosed in quotes.
+
+  .. code-block:: JSON
+
+     "coil" : 22
+
+The value of input for item 'X' in the modbus map must be either an integer
+  The input number given in the modbus map of an item must be an integer number, and should not be enclosed in quotes.
+
+  .. code-block:: JSON
+
+     "input" : 22
+
+The value of register for item 'X' in the modbus map must be either an integer or an array
+  The register to read for an entity must be either an integer number or in the case of values constructed from multiple registers it may be an array of integer numbers. Numeric values should not be enclosed on quotes.
+
+  .. code-block:: JSON
+
+     "register" : 22
+
+   Or
+
+  .. code-block:: JSON
+
+     "register" : [ 18, 19 ]
+
+The register array for item 'X' in the modbus map contain integer values
+  When giving an array as the value of the register property for a modbus item, that array must only contain register numbers expressed as numeric values. Register numbers should not be enclosed in quotes.
+
+  .. code-block:: JSON
+
+     "register" : [ 18, 19 ]
+
+The value of inputRegister for item 'X' in the modbus map must be either an integer or an array
+  The input register to read for an entity must be either an integer number or in the case of values constructed from multiple input registers it may be an array of integer numbers. Numeric values should not be enclosed on quotes.
+
+  .. code-block:: JSON
+
+     "inputRegister" : 22
+
+   Or
+
+  .. code-block:: JSON
+
+     "inputRegister" : [ 18, 19 ]
+
+The type property of the item 'X' in the modbus map must be a string
+  The optional *type* property for a modbus entity must be expressed as a string enclosed in double quotes.
+
+  .. code-block:: JSON
+
+     "type" : "float"
+
+The type property 'Y' of the item 'X' in the modbus map is not supported
+  The *type* property of the item is not supported by the plugin. Only the type *float* is currently supported.
+
+The swap property 'Y' of item 'X' in the modbus map must be one of bytes, words or both
+  An unsupported option has been supplied as the value of the swap property, only *bytes*, *words* or *both* are supported values.
+
+The swap property of the item 'X' in the modbus map must be a string
+  The optional *swap* property of a modbus item must be given as a string in double quotes and must be one of the supported swap options.
+
+  .. code-block:: JSON
+
+     "swap" : "bytes"
+
+Item 'X' in the modbus map must have one of coil, input, register or inputRegister properties
+  Each modbus item to be read from the modbus server must define how that item is addressed. This is done by adding a modbus property called *coil*, *input*, *register* or *inputRegister*.
+
+Item 'X' in the modbus map must only have one of coil, input, register or inputRegister properties
+  Each modbus item to be read from the modbus server must define how that item is addressed. This is done by adding a modbus property called *coil*, *input*, *register* or *inputRegister*, these are mutually exclusive and only one of them may be given per item in the modbus map.
+
+N errors encountered in the modbus map
+  A number of errors have been detected in the modbus map. These must be correct in order for the plugin to function correctly.
+
+Parse error in modbus map, the map must be a valid JSON object.
+  The modbus map JSON document has failed to parse. An additional text will be given that describes the error that has caused the parsing of the map to fail.
+
+Parse error in control modbus map, the map must be a valid JSON object.
+  The modbus control map JSON document has failed to parse. An additional text will be given that describes the error that has caused the parsing of the map to fail.
+
+Failed to connect to Modbus device
+  The plugin has failed to connect to a modbus device. In the case of a TCP modbus connection this could be because the address or port have been misconfigured or the modbus device is not currently reachable on the network. In the case of a modbus RTU device this may be a misconfiguration or a permissions issue on the entry in /dev for the device. Additional information will be given in the error message to help identify the issue.
+
