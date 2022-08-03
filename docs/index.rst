@@ -222,96 +222,96 @@ The following are messages that may be produced by the *fledge-south-modbus-c* p
 The value of slave in the modbus map should be an integer
   When a modbus slave identifier is defined within the JSON modbus map it should always be given as a integer value and should not be enclosed in quotes
 
-  .. code-block:: JSON
+  .. code-block:: json
 
      "slave" : 0
 
 The value of slave for item 'X' in the modbus map should be an integer
   A name entity in the modbus map is defined as a string and must be enclosed in double quotes. This error would indicate that a non-string value has been given.
 
-  .. code-block:: JSON
+  .. code-block:: json
 
      "name" : "speed"
 
 Each item in the modbus map must have a name property
   Each of the modbus entities that is read must define a name property for the entity.
 
-  .. code-block:: JSON
+  .. code-block:: json
 
      "name" : "speed"
 
 The value of assetName for item 'X' in the modbus map should be a string
   The optional property *assetName* must always be provided as a string in the modbus map.
 
-  .. code-block:: JSON
+  .. code-block:: json
 
      "assetName" : "pumpSpeed"
 
 The value of scale for item 'X' in the modbus map should be a floating point number
   The optional property *scale* must always be expressed as a numeric value in the JSON of the modbus map, and should not be enclosed in quotes.
 
-  .. code-block:: JSON
+  .. code-block:: json
 
      "scale" : 1.4
 
 The value of offset for item 'X' in the modbus map should be a floating point number
   The optional property *offset* must always be given as a numeric value in the JSON definition of the modbus item, and should not be enclosed in quotes.
 
-  .. code-block:: JSON
+  .. code-block:: json
 
      "offset" : 2.0
 
 The value of coil for item 'X' in the modbus map should be a number
   The coil number given in the modbus map of an item must be an integer number, and should not be enclosed in quotes.
 
-  .. code-block:: JSON
+  .. code-block:: json
 
      "coil" : 22
 
 The value of input for item 'X' in the modbus map must be either an integer
   The input number given in the modbus map of an item must be an integer number, and should not be enclosed in quotes.
 
-  .. code-block:: JSON
+  .. code-block:: json
 
      "input" : 22
 
 The value of register for item 'X' in the modbus map must be either an integer or an array
   The register to read for an entity must be either an integer number or in the case of values constructed from multiple registers it may be an array of integer numbers. Numeric values should not be enclosed on quotes.
 
-  .. code-block:: JSON
+  .. code-block:: json
 
      "register" : 22
 
   Or, if two regsiters are being combined
 
-  .. code-block:: JSON
+  .. code-block:: json
 
      "register" : [ 18, 19 ]
 
 The register array for item 'X' in the modbus map contain integer values
   When giving an array as the value of the register property for a modbus item, that array must only contain register numbers expressed as numeric values. Register numbers should not be enclosed in quotes.
 
-  .. code-block:: JSON
+  .. code-block:: json
 
      "register" : [ 18, 19 ]
 
 The value of inputRegister for item 'X' in the modbus map must be either an integer or an array
   The input register to read for an entity must be either an integer number or in the case of values constructed from multiple input registers it may be an array of integer numbers. Numeric values should not be enclosed on quotes.
 
-  .. code-block:: JSON
+  .. code-block:: json
 
      "inputRegister" : 22
 
   Or, if two input registers are being combined
 
-  .. code-block:: JSON
+  .. code-block:: json
 
      "inputRegister" : [ 18, 19 ]
 
 The type property of the item 'X' in the modbus map must be a string
   The optional *type* property for a modbus entity must be expressed as a string enclosed in double quotes.
 
-  .. code-block:: JSON
+  .. code-block:: json
 
      "type" : "float"
 
@@ -324,7 +324,7 @@ The swap property 'Y' of item 'X' in the modbus map must be one of bytes, words 
 The swap property of the item 'X' in the modbus map must be a string
   The optional *swap* property of a modbus item must be given as a string in double quotes and must be one of the supported swap options.
 
-  .. code-block:: JSON
+  .. code-block:: json
 
      "swap" : "bytes"
 
