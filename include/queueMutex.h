@@ -30,7 +30,7 @@ class QueueMutex {
 		void	lock()
 			{
 				std::unique_lock<std::mutex> guard(m_guard);
-				if (m_locked == false)
+				if (m_locked == false && m_queue.empty())
 				{
 					m_locked = true;
 					m_locker = std::this_thread::get_id();
@@ -72,7 +72,7 @@ class QueueMutex {
 	private:
 		std::mutex		m_guard;
 		std::condition_variable	m_cv;
-		bool			m_locked;
+		volatile bool		m_locked;
 		std::queue<std::thread::id>
 					m_queue;
 		std::thread::id		m_locker;
