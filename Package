@@ -25,6 +25,5 @@ case "$package_manager" in
 	rpm)
 		# Commented requirements because libmodbus package is not available in CentOS Stream 9
 		# requirements="${requirements},epel-release,libmodbus,libmodbus-devel"
-		requirements="${requirements}"
 		;;
 esac
