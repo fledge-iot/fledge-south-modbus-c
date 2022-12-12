@@ -9,6 +9,8 @@ plugin_install_dirname=ModbusC
 #   2. Architecture specific packages we depend on
 #   3. Package manager specific packages we depend on
 requirements="fledge"
+OS_NAME=$(grep -o '^NAME=.*' /etc/os-release | cut -f2 -d\" | sed 's/"//g')
+OS_VERSION=$(grep -o '^VERSION_ID=.*' /etc/os-release | cut -f2 -d\" | sed 's/"//g')
 
 case "$arch" in
 	x84_64)
@@ -23,6 +25,8 @@ case "$package_manager" in
 		requirements="${requirements},libmodbus-dev"
 		;;
 	rpm)
-		requirements="${requirements},epel-release,libmodbus,libmodbus-devel"
+		if [[ ( ${OS_NAME} == *"Red Hat"* || ${OS_NAME} == *"CentOS"* ) && ${OS_VERSION} == *"7"* ]]; then
+			requirements="${requirements},epel-release,libmodbus,libmodbus-devel"
+		fi
 		;;
 esac
