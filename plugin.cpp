@@ -170,7 +170,7 @@ static const char *def_cfg = QUOTE({
 			"validity" : "protocol == \"TCP\""
 			},
 		"control" : {
-			"description" : "Modbus request timeout",
+			"description" : "The source of the control map for the Modbus plugin. This defines which registers can be written on the Modbus device.",
 			"type" : "enumeration",
 			"default" : "None",
 			"order": "13",
