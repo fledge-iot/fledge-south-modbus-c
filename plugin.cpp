@@ -196,7 +196,7 @@ extern "C" {
  * The plugin information structure
  */
 static PLUGIN_INFORMATION info = {
-	"modbus",                 // Name
+	"modbusc",                // Name
 	VERSION,                  // Version
 	SP_CONTROL, 		  // Flags
 	PLUGIN_TYPE_SOUTH,        // Type
