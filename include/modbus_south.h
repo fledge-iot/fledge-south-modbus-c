@@ -30,6 +30,7 @@
 
 typedef enum { MODBUS_COIL, MODBUS_INPUT, MODBUS_REGISTER, MODBUS_INPUT_REGISTER } ModbusSource;
 typedef enum { NoControlMap, UseRegisterMap, UseControlMap } ModbusControlSource;
+typedef enum { EfficientBlock, Object, SingleRegister } ModbusReadMethod;
 
 /**
  * The Modbus class.
@@ -131,15 +132,16 @@ class Modbus {
 			public:
 				ModbusEntity(int slave, RegisterMap *map);
 				~ModbusEntity() { delete m_map; };
-				Datapoint	*read(modbus_t *modbus);
+				Datapoint	*read(modbus_t *modbus, ModbusReadMethod readMethod);
 				std::string	getAssetName() { return m_map->m_assetName; };
 				virtual ModbusSource	getSource() = 0;
 				RegisterMap		*getMap() { return m_map; };
 				virtual bool		write(modbus_t *modbus, const std::string& value) = 0;
 			protected:
-				virtual DatapointValue	*readItem(modbus_t *modbus) = 0;
+				virtual DatapointValue	*readItem(modbus_t *modbus, ModbusReadMethod readMethod) = 0;
 				RegisterMap	*m_map;
 				int		m_slave;
+				ModbusReadMethod m_readMethod;
 
 		};
 
@@ -150,7 +152,7 @@ class Modbus {
 			public:
 				ModbusCoil(int slave, RegisterMap *map) : ModbusEntity(slave, map) {};
 				virtual ~ModbusCoil() {};
-				DatapointValue	*readItem(modbus_t *modbus);
+				DatapointValue	*readItem(modbus_t *modbus, ModbusReadMethod readMethod);
 				ModbusSource	getSource() { return MODBUS_COIL; };
 				bool		write(modbus_t *modbus, const std::string& value);
 		};
@@ -162,7 +164,7 @@ class Modbus {
 			public:
 				ModbusInputBits(int slave, RegisterMap *map) : ModbusEntity(slave, map) {};
 				virtual ~ModbusInputBits() {};
-				DatapointValue	*readItem(modbus_t *modbus);
+				DatapointValue	*readItem(modbus_t *modbus, ModbusReadMethod readMethod);
 				ModbusSource	getSource() { return MODBUS_INPUT; };
 				bool		write(modbus_t *modbus, const std::string& value);
 		};
@@ -174,7 +176,7 @@ class Modbus {
 			public:
 				ModbusRegister(int slave, RegisterMap *map) : ModbusEntity(slave, map) {};
 				virtual ~ModbusRegister() {};
-				DatapointValue	*readItem(modbus_t *modbus);
+				DatapointValue	*readItem(modbus_t *modbus, ModbusReadMethod readMethod);
 				ModbusSource	getSource() { return MODBUS_REGISTER; };
 				bool		write(modbus_t *modbus, const std::string& value);
 		};
@@ -186,7 +188,7 @@ class Modbus {
 			public:
 				ModbusInputRegister(int slave, RegisterMap *map) : ModbusEntity(slave, map) {};
 				virtual ~ModbusInputRegister() {};
-				DatapointValue	*readItem(modbus_t *modbus);
+				DatapointValue	*readItem(modbus_t *modbus, ModbusReadMethod readMethod);
 				ModbusSource	getSource() { return MODBUS_INPUT_REGISTER; };
 				bool		write(modbus_t *modbus, const std::string& value);
 		};
@@ -215,6 +217,7 @@ class Modbus {
 		ModbusControlSource		m_control;
 		unsigned int			m_connectCount;
 		unsigned int			m_disconnectCount;
+		ModbusReadMethod		m_readMethod;
 };
 
 /**
