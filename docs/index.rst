@@ -48,6 +48,14 @@ A Modbus south service is added in the same way as any other south service in Fl
 
     - **Slave ID**: The slave ID of the Modbus device from which you wish to pull data.
 
+    - **Read Method**: The reading method defines the way to registers are read.
+
+      +------------+
+      | |modbus_3| |
+      +------------+
+
+      If *Efficient Block Read* is selected contiguous registers are read together in one read operation. If *Object Read* is selected each read operation reads one object per read operation as defined in register map. *Single Register Read* will read single register per read operation.
+
     - **Register Map**: The register map defines which Modbus registers and coils you read, and how to map them to Fledge assets. The map is a complex JSON object which is described in more detail below.
 
     - **Timeout**: The request timeout when communicating with a Modbus TCP client. This can be used to increase the timeout when a slow Modbus device or network is used.

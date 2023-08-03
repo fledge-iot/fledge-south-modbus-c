@@ -1583,7 +1583,7 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
  */
 bool Modbus::ModbusRegister::write(modbus_t *modbus, const string& strValue)
 {
-long			value;
+long		value;
 int			rc;
 
 	errno = 0;
@@ -1738,7 +1738,6 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 			uint16_t val;
 			if (manager->isCached(m_slave, MODBUS_INPUT_REGISTER, m_map->m_registers[a]))
 			{
-				Logger::getLogger()->error("Cache present for readMethod : %d", readMethod);
 				val = manager->cachedValue(m_slave, MODBUS_INPUT_REGISTER, m_map->m_registers[a]);
 				regValue |= (val << (a * 16));
 			}
