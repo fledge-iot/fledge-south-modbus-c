@@ -154,9 +154,17 @@ static const char *def_cfg = QUOTE({
 			"order": "10",
 			"displayName": "Slave ID"
 			},
+		"readMethod" : {
+			"description" : "The Modbus register reading method",
+			"type" : "enumeration",
+			"default" : "Efficient Block Read",
+			"order": "11",
+			"options": ["Efficient Block Read", "Object Read", "Single Register Read"],
+			"displayName": "Read Method"
+			},
 		"map" : {
 			"description" : "Modbus register map",
-			"order": "11",
+			"order": "12",
 			"displayName": "Register Map", 
 			"type" : "JSON",
 			"default" : MODBUS_MAP
@@ -165,7 +173,7 @@ static const char *def_cfg = QUOTE({
 			"description" : "Modbus request timeout",
 			"type" : "float",
 			"default" : "0.5",
-			"order": "12",
+			"order": "13",
 			"displayName": "Timeout",
 			"validity" : "protocol == \"TCP\""
 			},
@@ -173,13 +181,13 @@ static const char *def_cfg = QUOTE({
 			"description" : "The source of the control map for the Modbus plugin. This defines which registers can be written on the Modbus device.",
 			"type" : "enumeration",
 			"default" : "None",
-			"order": "13",
+			"order": "14",
 			"options" : [ "None", "Use Register Map", "Use Control Map" ],
 			"displayName": "Control"
 			},
 		"controlmap" : {
 			"description" : "Modbus control register map",
-			"order": "14",
+			"order": "15",
 			"displayName": "Control Map", 
 			"type" : "JSON",
 			"default" : CONTROL_MAP,
