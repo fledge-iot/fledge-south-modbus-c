@@ -1,6 +1,7 @@
 .. Images
 .. |modbus_1| image:: images/modbus_1.jpg
 .. |modbus_2| image:: images/modbus_2.jpg
+.. |modbus_3| image:: image/modbus_3.jpg
 
 Modbus South Plugin
 ===================
