@@ -69,7 +69,7 @@ Modbus::~Modbus()
  * If a connection already exists then we are called as part of reconfiguration
  * and we should tear down that previous modbus context.
  */
-void Modbus::createModbus()
+void Modbus:: createModbus()
 {
 	if (m_modbus)
 	{
@@ -619,7 +619,17 @@ Logger	*log = Logger::getLogger();
 			}
 		}
 
-		optimise();
+		string read_method = config->getValue("readMethod");
+		if (read_method.compare("Object Read") == 0) 
+		{
+			m_readMethod = ModbusReadMethod::Object;
+		} else if (read_method.compare("Single Register Read") == 0)
+		{
+			m_readMethod = ModbusReadMethod::SingleRegister;
+		} else {
+			m_readMethod = ModbusReadMethod::EfficientBlock;
+			optimise();
+		}
 	} catch (...) {
 		m_configMutex.unlock();
 		throw;
@@ -857,7 +867,6 @@ int errorCount = 0;
 		log->error("%s in map must only have one of coil, input, register or inputRegister properties", name.c_str());
 		errorCount++;
 	}
-
 	return rval;
 }
 
@@ -1088,7 +1097,7 @@ int			reconnects = 0;
 					m_configMutex.unlock();
 					return values;
 				}
-				Datapoint *dp = it->second[i]->read(m_modbus);
+				Datapoint *dp = it->second[i]->read(m_modbus, m_readMethod);
 				if (dp)
 				{
 					m_errcount = 0;
@@ -1352,12 +1361,13 @@ Modbus::ModbusEntity::ModbusEntity(int slave, RegisterMap *map) : m_slave(slave)
  * Read a modbus entity
  *
  * @param modbus	The modbus connection
+ * @param readMethod	Way of reading modbus register
  * @return	Datapoint * the value read as a datapoint
  */
 Datapoint *
-Modbus::ModbusEntity::read(modbus_t *modbus)
+Modbus::ModbusEntity::read(modbus_t *modbus, ModbusReadMethod readMethod)
 {
-	DatapointValue *dpv = readItem(modbus);
+	DatapointValue *dpv = readItem(modbus, readMethod);
 	if (!dpv)
 	{
 		return NULL;
@@ -1372,10 +1382,11 @@ Modbus::ModbusEntity::read(modbus_t *modbus)
  * Read a modbus coil
  *
  * @param modbus	The modbus connection
+ * @param readMethod	Way of reading modbus register
  * @return	DatapointValue * the value read as a datapoint value
  */
 DatapointValue *
-Modbus::ModbusCoil::readItem(modbus_t *modbus)
+Modbus::ModbusCoil::readItem(modbus_t *modbus, ModbusReadMethod readMethod)
 {
 DatapointValue		*value = NULL;
 uint8_t			coilValue;
@@ -1418,10 +1429,11 @@ bool Modbus::ModbusCoil::write(modbus_t *modbus, const string& strValue)
  * Read a modbus input bits
  *
  * @param modbus	The modbus connection
+ * @param readMethod	Way of reading modbus register
  * @return	DatapointValue * the value read as a datapoint value
  */
 DatapointValue *
-Modbus::ModbusInputBits::readItem(modbus_t *modbus)
+Modbus::ModbusInputBits::readItem(modbus_t *modbus, ModbusReadMethod readMethod)
 {
 DatapointValue		*value = NULL;
 uint8_t			coilValue;
@@ -1458,10 +1470,11 @@ bool Modbus::ModbusInputBits::write(modbus_t *modbus, const string& strValue)
  * Read a modbus register
  *
  * @param modbus	The modbus connection
+ * @param readMethod	Way of reading modbus register
  * @return	DatapointValue * the value read as a datapoint value
  */
 DatapointValue *
-Modbus::ModbusRegister::readItem(modbus_t *modbus)
+Modbus::ModbusRegister::readItem(modbus_t *modbus, ModbusReadMethod readMethod)
 {
 DatapointValue		*value = NULL;
 uint16_t		regValue;
@@ -1473,22 +1486,42 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 	{
 		long regValue = 0;
 		bool failure = false;
+		int regLen = m_map->m_registers.size();
 		for (int a = 0; a < m_map->m_registers.size(); a++)
 		{
 			uint16_t val;
 			if (manager->isCached(m_slave, MODBUS_REGISTER, m_map->m_registers[a]))
 			{
 				val = manager->cachedValue(m_slave, MODBUS_REGISTER, m_map->m_registers[a]);
-				regValue |= (val << (a * 16));
 			}
-			else if ((rc = modbus_read_registers(modbus, m_map->m_registers[a], 1, &val)) == 1)
-			{
-				regValue |= (val << (a * 16));
-			}
-			else
-			{
-				Logger::getLogger()->error("Modbus read register %d, %s", m_map->m_registers[a], modbus_strerror(errno));
-				failure = true;
+			else 
+			{	if (readMethod == ModbusReadMethod::Object) 
+				{
+					uint16_t valArr[regLen];
+					if ((rc = modbus_read_registers(modbus, m_map->m_registers[a], regLen, valArr)) == regLen) {
+						uint16_t value = 0;
+						for (int l = 0; l < regLen; l++)
+						{
+							regValue |= valArr[l] << (l * 16);
+						}
+						break;
+					}
+					else {
+						Logger::getLogger()->error("Modbus read register %d, %s", m_map->m_registers[a], modbus_strerror(errno));
+						failure = true;
+						break;
+					} 
+				}
+				else {
+					if ((rc = modbus_read_registers(modbus, m_map->m_registers[a], 1, &val)) == 1) {
+						regValue |= (val << (a * 16));
+					}
+					else {
+						Logger::getLogger()->error("Modbus read register %d, %s", m_map->m_registers[a], modbus_strerror(errno));
+						failure = true;
+						break;
+					}
+				}	
 			}
 		}
 		if (failure)
@@ -1550,7 +1583,7 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
  */
 bool Modbus::ModbusRegister::write(modbus_t *modbus, const string& strValue)
 {
-long			value;
+long		value;
 int			rc;
 
 	errno = 0;
@@ -1683,10 +1716,11 @@ int			rc;
  * Read a modbus input register
  *
  * @param modbus	The modbus connection
+ * @param readMethod	Way of reading modbus register
  * @return	DatapointValue * the value read as a datapoint value
  */
 DatapointValue *
-Modbus::ModbusInputRegister::readItem(modbus_t *modbus)
+Modbus::ModbusInputRegister::readItem(modbus_t *modbus, ModbusReadMethod readMethod)
 {
 DatapointValue		*value = NULL;
 uint16_t		regValue;
@@ -1698,6 +1732,7 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 	{
 		long regValue = 0;
 		bool failure = false;
+		int regLen = m_map->m_registers.size();
 		for (int a = 0; a < m_map->m_registers.size(); a++)
 		{
 			uint16_t val;
@@ -1706,14 +1741,40 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 				val = manager->cachedValue(m_slave, MODBUS_INPUT_REGISTER, m_map->m_registers[a]);
 				regValue |= (val << (a * 16));
 			}
-			else if ((rc = modbus_read_input_registers(modbus, m_map->m_registers[a], 1, &val)) == 1)
-			{
-				regValue |= (val << (a * 16));
-			}
-			else
-			{
-				Logger::getLogger()->error("Modbus read input register %d, %s", m_map->m_registerNo, modbus_strerror(errno));
-				failure = true;
+			else 
+			{	
+				if (readMethod == ModbusReadMethod::Object) 
+				{
+					uint16_t valArr[regLen];
+					if ((rc = modbus_read_input_registers(modbus, m_map->m_registers[a], regLen, valArr)) == regLen)
+					{
+						uint16_t value = 0;
+						for (int l = 0; l < regLen; l++)
+						{
+							regValue |= valArr[l] << (l * 16);
+						}
+						break;
+					}
+					else 
+					{
+						Logger::getLogger()->error("Modbus read register %d, %s", m_map->m_registers[a], modbus_strerror(errno));
+						failure = true;
+						break;
+					}
+				}
+				else
+				{
+					if ((rc = modbus_read_input_registers(modbus, m_map->m_registers[a], 1, &val)) == 1)
+					{
+						regValue |= (val << (a * 16));
+					}
+					else 
+					{
+						Logger::getLogger()->error("Modbus read input register %d, %s", m_map->m_registerNo, modbus_strerror(errno));
+						failure = true;
+						break;
+					}
+				}
 			}
 		}
 		if (failure)
