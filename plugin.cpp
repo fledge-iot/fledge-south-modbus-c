@@ -104,7 +104,8 @@ static const char *def_cfg = QUOTE({
 			"default" : "2222", 
 			"order": "4",
 			"displayName": "Port",
-			"validity" : "protocol == \"TCP\""
+			"validity" : "protocol == \"TCP\"",
+			"mandatory": "true"
 			},
 		"device" : {
 			"description" : "Device for Modbus RTU",
