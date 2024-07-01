@@ -212,6 +212,7 @@ class Modbus {
 		RegisterMap			*m_lastItem;
 		int				m_errcount;
 		float				m_timeout;
+		bool 				m_isDirtyContext;
 		std::map<std::string, ModbusEntity *>
 						m_writeMap;
 		ModbusControlSource		m_control;

@@ -45,7 +45,7 @@ using namespace std;
  */
 Modbus::Modbus() : m_modbus(0), m_tcp(false), m_port(0), m_device(""),
 	m_baud(0), m_bits(0), m_stopBits(0), m_parity('E'), m_errcount(0),
-	m_timeout(0.5), m_connectCount(0), m_disconnectCount(0)
+	m_timeout(0.5), m_connectCount(0), m_disconnectCount(0), m_isDirtyContext(true)
 {
 }
 
@@ -270,7 +270,15 @@ Logger	*log = Logger::getLogger();
 		
 		if (recreate)
 		{
-			createModbus();
+			try
+			{
+				createModbus();
+				m_isDirtyContext = false;
+			}
+			catch(const std::exception& e)
+			{
+				m_isDirtyContext = true;
+			}
 		}
 
 		if (config->itemExists("slave"))
@@ -1023,6 +1031,8 @@ Modbus::removeMap()
 vector<Reading *>	*Modbus::takeReading()
 {
 vector<Reading *>	*values = new vector<Reading *>();
+if (m_isDirtyContext)
+	return values;
 ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 int			reconnects = 0;
 #if INSTRUMENT_IO
@@ -1415,6 +1425,7 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
  */
 bool Modbus::ModbusCoil::write(modbus_t *modbus, const string& strValue)
 {
+
 	Logger::getLogger()->debug("Modbus write coil with '%s'", strValue.c_str());
 	int state = strtol(strValue.c_str(), NULL, 10);
 	if (modbus_write_bit(modbus, m_map->m_registerNo, state) != 1)
@@ -1583,6 +1594,7 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
  */
 bool Modbus::ModbusRegister::write(modbus_t *modbus, const string& strValue)
 {
+
 long		value;
 int			rc;
 
@@ -1851,6 +1863,9 @@ bool Modbus::ModbusInputRegister::write(modbus_t *modbus, const string& value)
  */
 bool Modbus::write(const string& name, const string& value)
 {
+	if(m_isDirtyContext)
+		return false;
+
 #if INSTRUMENT_IO
 	time_t	t1, t2, t3;
 	t1 = time(0);
