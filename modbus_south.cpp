@@ -45,7 +45,7 @@ using namespace std;
  */
 Modbus::Modbus() : m_modbus(0), m_tcp(false), m_port(0), m_device(""),
 	m_baud(0), m_bits(0), m_stopBits(0), m_parity('E'), m_errcount(0),
-	m_timeout(0.5), m_connectCount(0), m_disconnectCount(0), m_isDirtyContext(true)
+	m_timeout(0.5), m_connectCount(0), m_disconnectCount(0)
 {
 }
 
@@ -81,8 +81,7 @@ void Modbus:: createModbus()
 		snprintf(port, sizeof(port), "%d", m_port);
 		if ((m_modbus = modbus_new_tcp_pi(m_address.c_str(), port)) == NULL)
 		{
-			Logger::getLogger()->fatal("Modbus plugin failed to create modbus context, %s", modbus_strerror(errno));
-			throw runtime_error("Failed to create modbus context");
+			throw runtime_error(("%s", modbus_strerror(errno)));
 		}
 		struct timeval response_timeout;
 		response_timeout.tv_sec = floor(m_timeout);
@@ -99,8 +98,7 @@ void Modbus:: createModbus()
 	{
 		if ((m_modbus = modbus_new_rtu(m_device.c_str(), m_baud, m_parity, m_bits, m_stopBits)) == NULL)
 		{
-			Logger::getLogger()->fatal("Modbus plugin failed to create modbus context, %s", modbus_strerror(errno));
-			throw runtime_error("Failed to create mnodbus context");
+			throw runtime_error(("%s", modbus_strerror(errno)));
 		}
 	}
 #if DEBUG
@@ -273,11 +271,10 @@ Logger	*log = Logger::getLogger();
 			try
 			{
 				createModbus();
-				m_isDirtyContext = false;
 			}
 			catch(const std::exception& e)
 			{
-				m_isDirtyContext = true;
+				Logger::getLogger()->error("Failed to create modbus context : %s, cannot continue.",e.what());
 			}
 		}
 
@@ -1031,10 +1028,10 @@ Modbus::removeMap()
 vector<Reading *>	*Modbus::takeReading()
 {
 vector<Reading *>	*values = new vector<Reading *>();
-if (m_isDirtyContext)
-	return values;
 ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 int			reconnects = 0;
+static unsigned int debounceCounter = 0; // Counter to control printing of error logs
+static string contextError = "";
 #if INSTRUMENT_IO
 	time_t	t1, t2, t3;
 	t1 = time(0);
@@ -1053,7 +1050,29 @@ int			reconnects = 0;
 #endif
 		if (!m_modbus)
 		{
-			createModbus();
+			try
+			{
+				createModbus();
+			}
+			catch(const std::exception& e)
+			{
+				// Reset deboune counter if context creation failed due to different error than previous one
+				// or debounce counter is less than 60
+				if(contextError.compare(e.what()) != 0 || debounceCounter > 60)
+				{
+					contextError = e.what();
+					debounceCounter = 0;
+				}
+				else
+					debounceCounter++;
+
+				// Stop flooding the logs by limiting printing of logs
+				if (debounceCounter == 0)
+					Logger::getLogger()->error("Failed to create modbus context : %s, cannot continue.",e.what());
+
+				m_configMutex.unlock();
+				return values;
+			}
 		}
 		if (!m_connected)
 		{
@@ -1863,7 +1882,7 @@ bool Modbus::ModbusInputRegister::write(modbus_t *modbus, const string& value)
  */
 bool Modbus::write(const string& name, const string& value)
 {
-	if(m_isDirtyContext)
+	if(!m_modbus)
 		return false;
 
 #if INSTRUMENT_IO
