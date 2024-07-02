@@ -1057,7 +1057,7 @@ static string contextError = "";
 			catch(const std::exception& e)
 			{
 				// Reset deboune counter if context creation failed due to different error than previous one
-				// or debounce counter is less than 60
+				// or debounce counter is more than 60 (every 1 miniute @ 1 Hz)
 				if(contextError.compare(e.what()) != 0 || debounceCounter > 60)
 				{
 					contextError = e.what();
