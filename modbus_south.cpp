@@ -1030,8 +1030,8 @@ vector<Reading *>	*Modbus::takeReading()
 vector<Reading *>	*values = new vector<Reading *>();
 ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 int			reconnects = 0;
-static unsigned int debounceCounter = 0; // Counter to control printing of error logs
-static string contextError = "";
+static unsigned int	debounceCounter = 0; // Counter to control printing of error logs
+static string		contextError;
 #if INSTRUMENT_IO
 	time_t	t1, t2, t3;
 	t1 = time(0);
@@ -1056,19 +1056,16 @@ static string contextError = "";
 			}
 			catch(const std::exception& e)
 			{
-				// Reset deboune counter if context creation failed due to different error than previous one
+				// Reset debounce counter if context creation failed due to different error than previous one
 				// or debounce counter is more than 60 (every 1 miniute @ 1 Hz)
 				if(contextError.compare(e.what()) != 0 || debounceCounter > 60)
 				{
 					contextError = e.what();
 					debounceCounter = 0;
+					Logger::getLogger()->error("Failed to create modbus context : %s, cannot continue.",e.what());
 				}
 				else
 					debounceCounter++;
-
-				// Stop flooding the logs by limiting printing of logs
-				if (debounceCounter == 0)
-					Logger::getLogger()->error("Failed to create modbus context : %s, cannot continue.",e.what());
 
 				m_configMutex.unlock();
 				return values;
@@ -1444,7 +1441,6 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
  */
 bool Modbus::ModbusCoil::write(modbus_t *modbus, const string& strValue)
 {
-
 	Logger::getLogger()->debug("Modbus write coil with '%s'", strValue.c_str());
 	int state = strtol(strValue.c_str(), NULL, 10);
 	if (modbus_write_bit(modbus, m_map->m_registerNo, state) != 1)
@@ -1613,7 +1609,6 @@ ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
  */
 bool Modbus::ModbusRegister::write(modbus_t *modbus, const string& strValue)
 {
-
 long		value;
 int			rc;
 
