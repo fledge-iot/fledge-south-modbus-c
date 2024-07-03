@@ -207,6 +207,7 @@ class Modbus {
 		char				m_parity;
 		bool				m_tcp;
 		bool				m_connected;
+		bool				m_recreate;
 		int				m_defaultSlave;
 		QueueMutex			m_configMutex;
 		RegisterMap			*m_lastItem;

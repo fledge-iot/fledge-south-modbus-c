@@ -45,7 +45,7 @@ using namespace std;
  */
 Modbus::Modbus() : m_modbus(0), m_tcp(false), m_port(0), m_device(""),
 	m_baud(0), m_bits(0), m_stopBits(0), m_parity('E'), m_errcount(0),
-	m_timeout(0.5), m_connectCount(0), m_disconnectCount(0)
+	m_timeout(0.5), m_connectCount(0), m_disconnectCount(0),m_recreate(false)
 {
 }
 
@@ -136,7 +136,6 @@ void Modbus:: createModbus()
 void Modbus::configure(ConfigCategory *config)
 {
 string	device, address;
-bool	recreate = false;
 Logger	*log = Logger::getLogger();
 
 	m_configMutex.lock();
@@ -151,7 +150,7 @@ Logger	*log = Logger::getLogger();
 			{
 				if (!m_tcp)
 				{
-					recreate = true;
+					m_recreate = true;
 					m_tcp = true;
 				}
 				if (config->itemExists("address"))
@@ -160,7 +159,7 @@ Logger	*log = Logger::getLogger();
 					if (address.compare(m_address))
 					{
 						m_address = address;
-						recreate = true;
+						m_recreate = true;
 					}
 					if (! address.empty())		// Not empty
 					{
@@ -172,7 +171,7 @@ Logger	*log = Logger::getLogger();
 							if (m_port != port)
 							{
 								m_port = port;
-								recreate = true;
+								m_recreate = true;
 							}
 						}
 					}
@@ -187,7 +186,7 @@ Logger	*log = Logger::getLogger();
 			{
 				if (m_tcp)
 				{
-					recreate = true;
+					m_recreate = true;
 					m_tcp = false;
 				}
 				if (config->itemExists("device"))
@@ -231,27 +230,27 @@ Logger	*log = Logger::getLogger();
 					if (m_device.compare(device) != 0)
 					{
 						m_device = device;
-						recreate = true;
+						m_recreate = true;
 					}
 					if (m_baud != baud)
 					{
 						m_baud = baud;
-						recreate = true;
+						m_recreate = true;
 					}
 					if (m_parity != parity)
 					{
 						m_parity = parity;
-						recreate = true;
+						m_recreate = true;
 					}
 					if (m_bits != bits)
 					{
 						m_bits = bits;
-						recreate = true;
+						m_recreate = true;
 					}
 					if (m_stopBits != stopBits)
 					{
 						m_stopBits = stopBits;
-						recreate = true;
+						m_recreate = true;
 					}
 				}
 			}
@@ -264,18 +263,6 @@ Logger	*log = Logger::getLogger();
 		{
 			Logger::getLogger()->fatal("Modbus missing protocol specification");
 			throw runtime_error("Unable to determine modbus protocol");
-		}
-		
-		if (recreate)
-		{
-			try
-			{
-				createModbus();
-			}
-			catch(const std::exception& e)
-			{
-				Logger::getLogger()->error("Failed to create modbus context : %s, cannot continue.",e.what());
-			}
 		}
 
 		if (config->itemExists("slave"))
@@ -1048,11 +1035,12 @@ static string		contextError;
 		}
 		mutexHolder = HolderRead;
 #endif
-		if (!m_modbus)
+		if (m_recreate || !m_modbus)
 		{
 			try
 			{
 				createModbus();
+				m_recreate = false;
 			}
 			catch(const std::exception& e)
 			{
