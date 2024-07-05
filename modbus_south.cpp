@@ -45,7 +45,7 @@ using namespace std;
  */
 Modbus::Modbus() : m_modbus(0), m_tcp(false), m_port(0), m_device(""),
 	m_baud(0), m_bits(0), m_stopBits(0), m_parity('E'), m_errcount(0),
-	m_timeout(0.5), m_connectCount(0), m_disconnectCount(0)
+	m_timeout(0.5), m_connectCount(0), m_disconnectCount(0),m_recreate(false)
 {
 }
 
@@ -81,8 +81,7 @@ void Modbus:: createModbus()
 		snprintf(port, sizeof(port), "%d", m_port);
 		if ((m_modbus = modbus_new_tcp_pi(m_address.c_str(), port)) == NULL)
 		{
-			Logger::getLogger()->fatal("Modbus plugin failed to create modbus context, %s", modbus_strerror(errno));
-			throw runtime_error("Failed to create modbus context");
+			throw runtime_error(("%s", modbus_strerror(errno)));
 		}
 		struct timeval response_timeout;
 		response_timeout.tv_sec = floor(m_timeout);
@@ -99,8 +98,7 @@ void Modbus:: createModbus()
 	{
 		if ((m_modbus = modbus_new_rtu(m_device.c_str(), m_baud, m_parity, m_bits, m_stopBits)) == NULL)
 		{
-			Logger::getLogger()->fatal("Modbus plugin failed to create modbus context, %s", modbus_strerror(errno));
-			throw runtime_error("Failed to create mnodbus context");
+			throw runtime_error(("%s", modbus_strerror(errno)));
 		}
 	}
 #if DEBUG
@@ -138,7 +136,6 @@ void Modbus:: createModbus()
 void Modbus::configure(ConfigCategory *config)
 {
 string	device, address;
-bool	recreate = false;
 Logger	*log = Logger::getLogger();
 
 	m_configMutex.lock();
@@ -153,7 +150,7 @@ Logger	*log = Logger::getLogger();
 			{
 				if (!m_tcp)
 				{
-					recreate = true;
+					m_recreate = true;
 					m_tcp = true;
 				}
 				if (config->itemExists("address"))
@@ -162,7 +159,7 @@ Logger	*log = Logger::getLogger();
 					if (address.compare(m_address))
 					{
 						m_address = address;
-						recreate = true;
+						m_recreate = true;
 					}
 					if (! address.empty())		// Not empty
 					{
@@ -174,7 +171,7 @@ Logger	*log = Logger::getLogger();
 							if (m_port != port)
 							{
 								m_port = port;
-								recreate = true;
+								m_recreate = true;
 							}
 						}
 					}
@@ -189,7 +186,7 @@ Logger	*log = Logger::getLogger();
 			{
 				if (m_tcp)
 				{
-					recreate = true;
+					m_recreate = true;
 					m_tcp = false;
 				}
 				if (config->itemExists("device"))
@@ -233,27 +230,27 @@ Logger	*log = Logger::getLogger();
 					if (m_device.compare(device) != 0)
 					{
 						m_device = device;
-						recreate = true;
+						m_recreate = true;
 					}
 					if (m_baud != baud)
 					{
 						m_baud = baud;
-						recreate = true;
+						m_recreate = true;
 					}
 					if (m_parity != parity)
 					{
 						m_parity = parity;
-						recreate = true;
+						m_recreate = true;
 					}
 					if (m_bits != bits)
 					{
 						m_bits = bits;
-						recreate = true;
+						m_recreate = true;
 					}
 					if (m_stopBits != stopBits)
 					{
 						m_stopBits = stopBits;
-						recreate = true;
+						m_recreate = true;
 					}
 				}
 			}
@@ -266,11 +263,6 @@ Logger	*log = Logger::getLogger();
 		{
 			Logger::getLogger()->fatal("Modbus missing protocol specification");
 			throw runtime_error("Unable to determine modbus protocol");
-		}
-		
-		if (recreate)
-		{
-			createModbus();
 		}
 
 		if (config->itemExists("slave"))
@@ -1025,6 +1017,8 @@ vector<Reading *>	*Modbus::takeReading()
 vector<Reading *>	*values = new vector<Reading *>();
 ModbusCacheManager	*manager = ModbusCacheManager::getModbusCacheManager();
 int			reconnects = 0;
+static unsigned int	debounceCounter = 0; // Counter to control printing of error logs
+static string		contextError;
 #if INSTRUMENT_IO
 	time_t	t1, t2, t3;
 	t1 = time(0);
@@ -1041,9 +1035,29 @@ int			reconnects = 0;
 		}
 		mutexHolder = HolderRead;
 #endif
-		if (!m_modbus)
+		if (m_recreate || !m_modbus)
 		{
-			createModbus();
+			try
+			{
+				createModbus();
+				m_recreate = false;
+			}
+			catch(const std::exception& e)
+			{
+				// Reset debounce counter if context creation failed due to different error than previous one
+				// or debounce counter is more than 60 (every 1 minute @ 1 Hz)
+				if(contextError.compare(e.what()) != 0 || debounceCounter > 60)
+				{
+					contextError = e.what();
+					debounceCounter = 0;
+					Logger::getLogger()->error("Failed to create modbus context : %s, cannot continue.",e.what());
+				}
+				else
+					debounceCounter++;
+
+				m_configMutex.unlock();
+				return values;
+			}
 		}
 		if (!m_connected)
 		{
@@ -1851,6 +1865,9 @@ bool Modbus::ModbusInputRegister::write(modbus_t *modbus, const string& value)
  */
 bool Modbus::write(const string& name, const string& value)
 {
+	if(!m_modbus)
+		return false;
+
 #if INSTRUMENT_IO
 	time_t	t1, t2, t3;
 	t1 = time(0);
