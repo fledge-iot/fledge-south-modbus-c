@@ -67,6 +67,84 @@ using namespace std;
 			  ]					\
 		})
 
+/*
+ * The JSON Schema of the register map and the control map
+ */
+#define MAP_SCHEMA	QUOTE({					\
+		"title" : "Modbus Map",				\
+		"description" : "Modbus register map",		\
+		"type" : "object",				\
+		"properties" : {				\
+		   "name" : {					\
+		      "type" : "string",			\
+		      "description" : "Name of the value"	\
+		      },					\
+		   "slave" : {					\
+		      "type" : "integer",			\
+		      "description" : "The Modbus slave id"	\
+		      },					\
+		   "assetName" : {				\
+		      "type" : "string",			\
+		      "description" : "Optional asset name"	\
+		   },						\
+		   "coil": { 					\
+		      "type" : "integer",			\
+		      "minimum" : 1,				\
+		      "maximum" : 9999				\
+		   },						\
+		   "input": { 					\
+		      "type" : "integer",			\
+		      "minimum" : 1,				\
+		      "maximum" : 9999				\
+		   },						\
+		   "register": { 				\
+		      "type" : [ "integer", "array" ],		\
+		      "items" : {				\
+		      	  "type" : "integer",			\
+			  "minimum" : 1,			\
+			  "maximum" : 9999			\
+			},					\
+		      "minimum" : 1,				\
+		      "maximum" : 9999				\
+		    },						\
+		   "inputRegister": { 				\
+		      "type" : [ "integer", "array" ],		\
+		      "items" : {				\
+		      	  "type" : "integer",			\
+			  "minimum" : 1,			\
+			  "maximum" : 9999			\
+			},					\
+		      "minimum" : 1,				\
+		      "maximum" : 9999				\
+		    },						\
+		    "scale": {					\
+		       "type" : "number",			\
+		       "description" : "Scale multiplier"	\
+		    },						\
+		    "offset": {					\
+		       "type" : "number",			\
+		       "description" : "Value offset"		\
+		    },						\
+		    "type": {					\
+		       "type" : "string",			\
+		       "enum" : ["", "float"]			\
+		       "description" : "Data type"		\
+		    },						\
+		    "swap" : {					\
+		       "type" : "string",			\
+		       "enum" : [ "", "bytes", "words", "both"],\
+		       "description" : "Byte swapping"		\
+		    }						\
+		},						\
+		"required" : [ "name" ]				\
+	        "anyOf" : [					\
+		     { "required" : [ "coil" ] },		\
+		     { "required" : [ "input" ] },		\
+		     { "required" : [ "register" ] },		\
+		     { "required" : [ "inputRegister" ] }	\
+		   ]						\
+		})
+
 static const char *def_cfg = QUOTE({
 		"plugin" : {
 			"description" : "Modbus TCP and RTU C south plugin",
@@ -168,7 +246,8 @@ static const char *def_cfg = QUOTE({
 			"order": "12",
 			"displayName": "Register Map", 
 			"type" : "JSON",
-			"default" : MODBUS_MAP
+			"default" : MODBUS_MAP,
+			"schema" : MAP_SCHEMA,
 			},
 		"timeout" : {
 			"description" : "Modbus request timeout",
@@ -192,6 +271,7 @@ static const char *def_cfg = QUOTE({
 			"displayName": "Control Map", 
 			"type" : "JSON",
 			"default" : CONTROL_MAP,
+			"schema" : MAP_SCHEMA,
 			"validity" : "control == \"Use Control Map\""
 			}
 		});
