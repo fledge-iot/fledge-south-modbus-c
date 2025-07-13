@@ -1,6 +1,7 @@
 .. Images
 .. |modbus_1| image:: images/modbus_1.jpg
 .. |modbus_2| image:: images/modbus_2.jpg
+.. |modbus_3| image:: images/modbus_3.jpg
 
 Modbus South Plugin
 ===================
@@ -47,6 +48,14 @@ A Modbus south service is added in the same way as any other south service in Fl
     - **Parity**: The parity setting to use on the serial connection.
 
     - **Slave ID**: The slave ID of the Modbus device from which you wish to pull data.
+
+    - **Read Method**: The reading method defines the way to registers are read.
+
+      +------------+
+      | |modbus_3| |
+      +------------+
+
+      If *Efficient Block Read* is selected contiguous registers are read together in one read operation. If *Object Read* is selected each read operation reads one object per read operation as defined in register map. *Single Register Read* will read single register per read operation.
 
     - **Register Map**: The register map defines which Modbus registers and coils you read, and how to map them to Fledge assets. The map is a complex JSON object which is described in more detail below.
 
